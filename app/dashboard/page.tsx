@@ -214,16 +214,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full max-w-md rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 font-semibold hover:bg-rose-100"
-          >
-            Logout
-          </button>
-        </div>
-
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -314,6 +304,15 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+        </div>
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full max-w-md rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-4 py-3 font-semibold hover:bg-rose-100"
+          >
+            Logout
+          </button>
         </div>
       </div>
     </main>

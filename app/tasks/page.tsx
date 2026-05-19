@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type TaskStatus = "pending" | "in_progress" | "submitted" | "pending_approval" | "completed" | "approved" | "rejected" | "overdue";
@@ -14,6 +14,15 @@ type Task = {
   submittedAt?: string;
   submissionNote?: string;
   submissionImage?: string;
+};
+
+const employeeNames: Record<string, string> = {
+  E001: "พนักงาน A",
+  E002: "พนักงาน B",
+  E003: "พนักงาน C",
+  E004: "ผู้บริหาร",
+  E005: "ผู้จัดการคลัง",
+  E006: "ผู้จัดการฝ่ายขาย",
 };
 
 const initialTasks: Task[] = [
@@ -96,7 +105,10 @@ function formatTimeStatus(task: Task) {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("th-TH", {
+  if (!value) return "ไม่มีกำหนดส่ง";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("th-TH", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -107,6 +119,26 @@ export default function TasksPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("all");
   const [taskList, setTaskList] = useState<Task[]>(initialTasks);
+
+  useEffect(() => {
+    const stored: { id: string; title: string; dueDate: string; assigneeId: string | null; assignType: string; status: string }[] =
+      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+
+    const fromStorage = stored.map((t) => ({
+      id: t.id,
+      title: t.title,
+      assignee: t.assigneeId ? (employeeNames[t.assigneeId] || t.assigneeId) : "เปิดให้รับ",
+      status: (t.status === "open" ? "pending" : t.status) as TaskStatus,
+      due: t.dueDate || "",
+    }));
+
+    if (fromStorage.length > 0) {
+      setTaskList((prev) => {
+        const ids = new Set(prev.map((t) => t.id));
+        return [...prev, ...fromStorage.filter((t) => !ids.has(t.id))];
+      });
+    }
+  }, []);
 
   const pendingCount = taskList.filter((t) => t.status === "pending_approval").length;
 
