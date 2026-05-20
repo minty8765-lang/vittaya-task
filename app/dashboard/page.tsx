@@ -111,6 +111,13 @@ export default function DashboardPage() {
   const [rejectReasonInput, setRejectReasonInput] = useState("");
 
   useEffect(() => {
+    const raw = localStorage.getItem("vittaya_current_user");
+    if (!raw) { router.push("/login"); return; }
+    const user = JSON.parse(raw);
+    if (user.role !== "admin") { router.push("/login"); return; }
+  }, [router]);
+
+  useEffect(() => {
     const stored: { id: string; title: string; dueDate: string; assigneeId: string | null; status: string }[] =
       JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
 
@@ -231,6 +238,16 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {(() => {
+          const count = taskList.filter((t) => t.status === "pending_approval").length;
+          if (count === 0) return null;
+          return (
+            <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+              <p className="text-sm font-semibold text-amber-800">มีงานรออนุมัติ {count} งาน</p>
+            </div>
+          );
+        })()}
 
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200">
           <div className="mb-4 flex items-center justify-between">

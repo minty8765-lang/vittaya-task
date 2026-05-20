@@ -17,8 +17,6 @@ type Task = {
   rejectReason?: string;
 };
 
-const currentEmployee = "พนักงาน A";
-const currentEmployeeId = "E001";
 
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
@@ -169,16 +167,27 @@ export default function EmployeePage() {
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
+    const stored = localStorage.getItem("vittaya_current_user");
+    if (!stored) { router.push("/login"); return; }
+    const user = JSON.parse(stored);
+    if (user.role !== "employee") { router.push("/login"); return; }
+    setCurrentUser(user);
+  }, [router]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
     const stored: { id: string; title: string; description: string; dueDate: string; assigneeId: string | null; assignType: string; status: string; rejectReason?: string }[] =
       JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
 
     if (stored.length === 0) return;
 
     const assigned = stored
-      .filter((t) => t.assignType === "assigned" && t.assigneeId === currentEmployeeId)
+      .filter((t) => t.assignType === "assigned" && t.assigneeId === currentUser.id)
       .map((t) => ({
         id: t.id,
         title: t.title,
@@ -204,7 +213,7 @@ export default function EmployeePage() {
 
     setTasks(assigned);
     setOpenTasks(open);
-  }, []);
+  }, [currentUser]);
 
   const filteredTasks = tasks.filter((task) => activeTab === "all" || task.status === activeTab);
 
@@ -281,7 +290,7 @@ export default function EmployeePage() {
       JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
     const updated = stored.map((t) =>
       t.id === task.id
-        ? { ...t, assigneeId: currentEmployeeId, assignType: "assigned", status: "in_progress" }
+        ? { ...t, assigneeId: currentUser?.id ?? "", assignType: "assigned", status: "in_progress" }
         : t
     );
     localStorage.setItem("vittaya_tasks", JSON.stringify(updated));
@@ -317,7 +326,7 @@ export default function EmployeePage() {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.35em] text-sky-600">งานของฉัน</p>
-              <h1 className="mt-2 text-3xl font-semibold text-zinc-950">{currentEmployee}</h1>
+              <h1 className="mt-2 text-3xl font-semibold text-zinc-950">{currentUser?.name ?? ""}</h1>
               <p className="mt-2 max-w-2xl text-sm text-zinc-600">
                 ดูงานของคุณ แยกตามสถานะ และส่งงานหรือแก้ไขงานใหม่ได้ที่นี่
               </p>
@@ -335,6 +344,16 @@ export default function EmployeePage() {
               </button>
             </div>
           </div>
+
+          {(() => {
+            const count = tasks.filter((t) => t.status === "rejected").length;
+            if (count === 0) return null;
+            return (
+              <div className="mb-5 rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+                <p className="text-sm font-semibold text-red-800">มีงานถูกตีกลับ {count} งาน</p>
+              </div>
+            );
+          })()}
 
           {(() => {
             const total = tasks.length;

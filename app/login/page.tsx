@@ -4,8 +4,8 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const mockUsers = [
-  { email: "admin@vittaya.com", password: "123456", role: "admin" },
-  { email: "employee@vittaya.com", password: "123456", role: "employee" },
+  { id: "A001", name: "ผู้ดูแลระบบ", email: "admin@vittaya.com", password: "123456", role: "admin" },
+  { id: "E001", name: "พนักงาน A", email: "employee@vittaya.com", password: "123456", role: "employee" },
 ];
 
 export default function LoginPage() {
@@ -24,6 +24,12 @@ export default function LoginPage() {
     }
 
     setError("");
+    localStorage.setItem("vittaya_current_user", JSON.stringify({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    }));
     if (user.role === "admin") {
       router.push("/dashboard");
     } else {

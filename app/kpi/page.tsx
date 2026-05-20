@@ -66,6 +66,13 @@ export default function KpiPage() {
   const [taskList, setTaskList] = useState<StoredTask[]>([]);
 
   useEffect(() => {
+    const raw = localStorage.getItem("vittaya_current_user");
+    if (!raw) { router.push("/login"); return; }
+    const user = JSON.parse(raw);
+    if (user.role !== "admin") { router.push("/login"); return; }
+  }, [router]);
+
+  useEffect(() => {
     const raw: StoredTask[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
     setTaskList(raw);
   }, []);
