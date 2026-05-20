@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -10,13 +11,35 @@ type EmployeeKPI = {
   completedTasks: number;
   lateTasks: number;
   overdueTasks: number;
+  inProgressTasks: number;
+  pendingApprovalTasks: number;
+  rejectedTasks: number;
+  completionRate: number;
 };
 
-const employees: EmployeeKPI[] = [
-  { name: "พนักงาน A", totalTasks: 12, onTimeTasks: 9, completedTasks: 11, lateTasks: 1, overdueTasks: 1 },
-  { name: "พนักงาน B", totalTasks: 8, onTimeTasks: 5, completedTasks: 6, lateTasks: 2, overdueTasks: 0 },
-  { name: "พนักงาน C", totalTasks: 0, onTimeTasks: 0, completedTasks: 0, lateTasks: 0, overdueTasks: 0 },
-  { name: "พนักงาน D", totalTasks: 5, onTimeTasks: 2, completedTasks: 3, lateTasks: 2, overdueTasks: 1 },
+type StoredTask = {
+  id: string;
+  title: string;
+  assigneeId: string | null;
+  assignType: string;
+  status: string;
+  dueDate: string;
+};
+
+const employeeNames: Record<string, string> = {
+  E001: "พนักงาน A",
+  E002: "พนักงาน B",
+  E003: "พนักงาน C",
+  E004: "ผู้บริหาร",
+  E005: "ผู้จัดการคลัง",
+  E006: "ผู้จัดการฝ่ายขาย",
+};
+
+const mockEmployees: EmployeeKPI[] = [
+  { name: "พนักงาน A", totalTasks: 12, onTimeTasks: 9, completedTasks: 11, lateTasks: 1, overdueTasks: 1, inProgressTasks: 1, pendingApprovalTasks: 0, rejectedTasks: 0, completionRate: 92 },
+  { name: "พนักงาน B", totalTasks: 8, onTimeTasks: 5, completedTasks: 6, lateTasks: 2, overdueTasks: 0, inProgressTasks: 1, pendingApprovalTasks: 1, rejectedTasks: 0, completionRate: 75 },
+  { name: "พนักงาน C", totalTasks: 0, onTimeTasks: 0, completedTasks: 0, lateTasks: 0, overdueTasks: 0, inProgressTasks: 0, pendingApprovalTasks: 0, rejectedTasks: 0, completionRate: 0 },
+  { name: "พนักงาน D", totalTasks: 5, onTimeTasks: 2, completedTasks: 3, lateTasks: 2, overdueTasks: 1, inProgressTasks: 0, pendingApprovalTasks: 1, rejectedTasks: 1, completionRate: 60 },
 ];
 
 function calcKPI(emp: EmployeeKPI) {
@@ -40,17 +63,55 @@ function levelAndColor(score: number) {
 
 export default function KpiPage() {
   const router = useRouter();
+  const [taskList, setTaskList] = useState<StoredTask[]>([]);
+
+  useEffect(() => {
+    const raw: StoredTask[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    setTaskList(raw);
+  }, []);
+
+  const employees = (() => {
+    if (taskList.length === 0) return mockEmployees;
+
+    const grouped: Record<string, StoredTask[]> = {};
+    for (const t of taskList) {
+      if (!t.assigneeId) continue;
+      if (!grouped[t.assigneeId]) grouped[t.assigneeId] = [];
+      grouped[t.assigneeId].push(t);
+    }
+
+    return Object.entries(grouped).map(([assigneeId, tasks]) => {
+      const total = tasks.length;
+      const completed = tasks.filter((t) => t.status === "completed").length;
+      const inProgress = tasks.filter((t) => t.status === "in_progress").length;
+      const pendingApproval = tasks.filter((t) => t.status === "pending_approval").length;
+      const rejected = tasks.filter((t) => t.status === "rejected").length;
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return {
+        name: employeeNames[assigneeId] || assigneeId,
+        totalTasks: total,
+        onTimeTasks: 0,
+        completedTasks: completed,
+        lateTasks: 0,
+        overdueTasks: 0,
+        inProgressTasks: inProgress,
+        pendingApprovalTasks: pendingApproval,
+        rejectedTasks: rejected,
+        completionRate,
+      };
+    });
+  })();
 
   const summary = employees.reduce(
     (acc, e) => {
       acc.total += e.totalTasks;
-      acc.onTime += e.onTimeTasks;
       acc.completed += e.completedTasks;
-      acc.late += e.lateTasks;
-      acc.overdue += e.overdueTasks;
+      acc.inProgress += e.inProgressTasks;
+      acc.pendingApproval += e.pendingApprovalTasks;
+      acc.rejected += e.rejectedTasks;
       return acc;
     },
-    { total: 0, onTime: 0, completed: 0, late: 0, overdue: 0 },
+    { total: 0, completed: 0, inProgress: 0, pendingApproval: 0, rejected: 0 },
   );
 
   const handleLogout = () => {
@@ -91,16 +152,20 @@ export default function KpiPage() {
               <p className="mt-1 text-lg font-semibold text-zinc-900">{summary.total}</p>
             </div>
             <div className="rounded-xl bg-zinc-50 p-3 text-center">
-              <p className="text-xs text-zinc-500">งานส่งตรงเวลา</p>
-              <p className="mt-1 text-lg font-semibold text-zinc-900">{summary.onTime}</p>
+              <p className="text-xs text-zinc-500">งานสำเร็จ</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600">{summary.completed}</p>
             </div>
             <div className="rounded-xl bg-zinc-50 p-3 text-center">
-              <p className="text-xs text-zinc-500">งานส่งช้า</p>
-              <p className="mt-1 text-lg font-semibold text-zinc-900">{summary.late}</p>
+              <p className="text-xs text-zinc-500">งานกำลังทำ</p>
+              <p className="mt-1 text-lg font-semibold text-sky-600">{summary.inProgress}</p>
             </div>
-            <div className="rounded-xl bg-zinc-50 p-3 text-center col-span-2">
-              <p className="text-xs text-zinc-500">งานเกินกำหนด</p>
-              <p className="mt-1 text-lg font-semibold text-zinc-900">{summary.overdue}</p>
+            <div className="rounded-xl bg-zinc-50 p-3 text-center">
+              <p className="text-xs text-zinc-500">งานรออนุมัติ</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600">{summary.pendingApproval}</p>
+            </div>
+            <div className="rounded-xl bg-zinc-50 p-3 text-center">
+              <p className="text-xs text-zinc-500">งานไม่ผ่าน</p>
+              <p className="mt-1 text-lg font-semibold text-red-600">{summary.rejected}</p>
             </div>
           </div>
         </div>
@@ -110,26 +175,22 @@ export default function KpiPage() {
         <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200">
           <div className="space-y-3">
             {employees.map((e) => {
-              const score = calcKPI(e);
-              const lvl = levelAndColor(score);
-              const onTimeRate = e.totalTasks === 0 ? 0 : Math.round((e.onTimeTasks / e.totalTasks) * 100);
+              const lvl = levelAndColor(e.completionRate);
               return (
                 <div key={e.name} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-zinc-900">{e.name}</p>
                       <p className="mt-1 text-xs text-zinc-600">งานทั้งหมด: {e.totalTasks}</p>
-                      <p className="text-xs text-zinc-600">ส่งตรงเวลา: {e.onTimeTasks} • ส่งช้า: {e.lateTasks} • เกินกำหนด: {e.overdueTasks}</p>
+                      <p className="text-xs text-zinc-600">
+                        สำเร็จ: {e.completedTasks} • กำลังทำ: {e.inProgressTasks} • รออนุมัติ: {e.pendingApprovalTasks} • ไม่ผ่าน: {e.rejectedTasks}
+                      </p>
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
                       <div className="text-right">
-                        <p className="text-sm font-semibold">{onTimeRate}%</p>
-                        <p className="text-xs text-zinc-600">อัตราส่งตรงเวลา</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold">{score}</p>
-                        <p className="text-xs text-zinc-600">คะแนน KPI</p>
+                        <p className="text-sm font-semibold text-emerald-600">{e.completionRate}%</p>
+                        <p className="text-xs text-zinc-600">completion rate</p>
                       </div>
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${lvl.color}`}>{lvl.level}</span>
                     </div>

@@ -174,41 +174,34 @@ export default function EmployeePage() {
     const stored: { id: string; title: string; description: string; dueDate: string; assigneeId: string | null; assignType: string; status: string }[] =
       JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
 
-    const existingTaskIds = new Set(initialTasks.map((t) => t.id));
-    const existingOpenIds = new Set(initialOpenTasks.map((t) => t.id));
+    if (stored.length === 0) return;
 
-    const newAssigned = stored
-      .filter((t) => t.assignType === "assigned" && t.assigneeId === currentEmployeeId && !existingTaskIds.has(t.id))
+    const assigned = stored
+      .filter((t) => t.assignType === "assigned" && t.assigneeId === currentEmployeeId)
       .map((t) => ({
         id: t.id,
         title: t.title,
-        description: t.description,
+        description: t.description || "",
         assigner: "Admin",
         dueDate: t.dueDate || "ไม่มีกำหนดส่ง",
         priority: "ปานกลาง",
         status: "in_progress" as TaskStatus,
       }));
 
-    const newOpen = stored
-      .filter((t) => t.assignType === "open" && !existingOpenIds.has(t.id))
+    const open = stored
+      .filter((t) => t.assignType === "open" && t.assigneeId === null)
       .map((t) => ({
         id: t.id,
         title: t.title,
-        description: t.description,
+        description: t.description || "",
         dueDate: t.dueDate || "ไม่มีกำหนดส่ง",
         priority: "ปานกลาง",
         assignType: "open" as const,
         assigneeId: null,
       }));
 
-    if (newAssigned.length > 0) setTasks((prev) => {
-      const ids = new Set(prev.map((t) => t.id));
-      return [...prev, ...newAssigned.filter((t) => !ids.has(t.id))];
-    });
-    if (newOpen.length > 0) setOpenTasks((prev) => {
-      const ids = new Set(prev.map((t) => t.id));
-      return [...prev, ...newOpen.filter((t) => !ids.has(t.id))];
-    });
+    setTasks(assigned);
+    setOpenTasks(open);
   }, []);
 
   const filteredTasks = tasks.filter((task) => activeTab === "all" || task.status === activeTab);
@@ -264,6 +257,13 @@ export default function EmployeePage() {
     event.preventDefault();
     if (!selectedTask) return;
 
+    const stored: { id: string; status: string }[] =
+      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    const updated = stored.map((t) =>
+      t.id === selectedTask.id ? { ...t, status: "pending_approval" } : t
+    );
+    localStorage.setItem("vittaya_tasks", JSON.stringify(updated));
+
     setTasks((current) =>
       current.map((task) =>
         task.id === selectedTask.id ? { ...task, status: "pending_approval" } : task,
@@ -275,6 +275,15 @@ export default function EmployeePage() {
   };
 
   const handleAcceptTask = (task: OpenTask) => {
+    const stored: { id: string; assigneeId: string | null; assignType: string; status: string }[] =
+      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    const updated = stored.map((t) =>
+      t.id === task.id
+        ? { ...t, assigneeId: currentEmployeeId, assignType: "assigned", status: "in_progress" }
+        : t
+    );
+    localStorage.setItem("vittaya_tasks", JSON.stringify(updated));
+
     setOpenTasks((current) => current.filter((t) => t.id !== task.id));
     setTasks((current) => [
       ...current,

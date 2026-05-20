@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-type TaskStatus = "pending" | "in_progress" | "submitted" | "pending_approval" | "completed" | "approved" | "rejected";
+type TaskStatus = "open" | "pending" | "in_progress" | "submitted" | "pending_approval" | "completed" | "approved" | "rejected";
 
 type TaskItem = {
   id: string;
@@ -15,6 +15,15 @@ type TaskItem = {
   submittedAt?: string;
   submissionNote?: string;
   submissionImage?: string;
+};
+
+const employeeNames: Record<string, string> = {
+  E001: "พนักงาน A",
+  E002: "พนักงาน B",
+  E003: "พนักงาน C",
+  E004: "ผู้บริหาร",
+  E005: "ผู้จัดการคลัง",
+  E006: "ผู้จัดการฝ่ายขาย",
 };
 
 const initialTasks: TaskItem[] = [
@@ -91,12 +100,28 @@ const statusBadge: Record<TaskStatus, { label: string; className: string }> = {
   rejected: { label: "ไม่ผ่านงาน", className: "bg-red-100 text-red-700" },
 };
 
-type FilterKey = "all" | TaskStatus;
+type FilterKey = "all" | "open" | "in_progress" | "pending_approval" | "completed" | "rejected";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState<FilterKey>("all");
   const [taskList, setTaskList] = useState<TaskItem[]>(initialTasks);
+
+  useEffect(() => {
+    const stored: { id: string; title: string; dueDate: string; assigneeId: string | null; status: string }[] =
+      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+
+    if (stored.length > 0) {
+      const fromStorage = stored.map((t) => ({
+        id: t.id,
+        title: t.title,
+        assignee: t.assigneeId ? (employeeNames[t.assigneeId] || t.assigneeId) : "เปิดให้รับ",
+        status: (t.status === "open" ? "pending" : t.status) as TaskStatus,
+        due: t.dueDate || "",
+      }));
+      setTaskList(fromStorage);
+    }
+  }, []);
 
   const handleLogout = () => {
     if (typeof window !== "undefined") {
@@ -117,36 +142,21 @@ export default function DashboardPage() {
     setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "in_progress" } : t)));
   }
 
-  const summaryCards = [
-    {
-      key: "all",
-      label: "ทั้งหมด",
-      count: taskList.length,
-      icon: <svg className="h-5 w-5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" /></svg>,
-    },
-    {
-      key: "pending_approval",
-      label: "รออนุมัติ",
-      count: taskList.filter((t) => t.status === "pending_approval").length,
-      icon: <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-    },
-    {
-      key: "completed",
-      label: "สำเร็จ",
-      count: taskList.filter((t) => t.status === "completed" || t.status === "approved").length,
-      icon: <svg className="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" /></svg>,
-    },
-    {
-      key: "rejected",
-      label: "ไม่ผ่าน",
-      count: taskList.filter((t) => t.status === "rejected").length,
-      icon: <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
-    },
+  const tabs: { key: FilterKey; label: string; count: number }[] = [
+    { key: "all", label: "ทั้งหมด", count: taskList.length },
+    { key: "open", label: "รอดำเนินการ", count: taskList.filter((t) => t.status === "open" || t.status === "pending").length },
+    { key: "in_progress", label: "กำลังทำ", count: taskList.filter((t) => t.status === "in_progress").length },
+    { key: "pending_approval", label: "รออนุมัติ", count: taskList.filter((t) => t.status === "pending_approval").length },
+    { key: "completed", label: "สำเร็จ", count: taskList.filter((t) => t.status === "completed" || t.status === "approved").length },
+    { key: "rejected", label: "ไม่ผ่านงาน", count: taskList.filter((t) => t.status === "rejected").length },
   ];
 
-  const filteredTasks = taskList.filter((task) =>
-    selectedStatus === "all" ? true : task.status === selectedStatus
-  );
+  const filteredTasks = taskList.filter((task) => {
+    if (selectedStatus === "all") return true;
+    if (selectedStatus === "open") return task.status === "open" || task.status === "pending";
+    if (selectedStatus === "completed") return task.status === "completed" || task.status === "approved";
+    return task.status === selectedStatus;
+  });
 
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-6">
@@ -189,28 +199,27 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {summaryCards.map((card) => {
-              const active = selectedStatus === (card.key as FilterKey);
-              return (
-                <button
-                  key={card.key}
-                  type="button"
-                  onClick={() => setSelectedStatus(card.key as FilterKey)}
-                  className={`flex items-center gap-3 rounded-2xl p-3 transition ${
-                    active ? "bg-sky-600 text-white shadow-md" : "bg-white text-zinc-900 hover:shadow-sm"
-                  }`}
-                >
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${active ? "bg-white/20" : "bg-zinc-50"}`}>
-                    {card.icon}
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold">{card.label}</p>
-                    <p className={`mt-1 text-lg font-semibold ${active ? "text-white" : "text-zinc-950"}`}>{card.count}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="mt-5 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <div className="inline-flex gap-2 pb-1">
+              {tabs.map((tab) => {
+                const active = selectedStatus === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setSelectedStatus(tab.key)}
+                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                      active ? "bg-sky-600 text-white shadow" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                    }`}
+                  >
+                    {tab.label}
+                    <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${active ? "bg-white/20 text-white" : "bg-zinc-200 text-zinc-600"}`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -220,9 +229,6 @@ export default function DashboardPage() {
               <h2 className="text-xl font-semibold text-zinc-950">งานล่าสุด</h2>
               <p className="mt-1 text-sm text-zinc-600">รายการงานที่เพิ่งสร้างหรือปรับสถานะ</p>
             </div>
-            <Link href="/tasks" className="text-sm font-medium text-sky-600 hover:text-sky-700">
-              ดูงานทั้งหมด
-            </Link>
           </div>
 
           <div className="space-y-3">

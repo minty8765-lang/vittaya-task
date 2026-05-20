@@ -35,7 +35,7 @@ export default function NewTaskPage() {
     } else {
       setAssigneeId(value || null);
       setAssignType(value ? "assigned" : "");
-      setStatus(value ? "assigned" : "");
+      setStatus(value ? "in_progress" : "");
     }
   }
 
@@ -136,7 +136,7 @@ export default function NewTaskPage() {
             <p className="mt-1 text-sm text-zinc-500">งานใหม่ถูกบันทึกเรียบร้อยแล้ว</p>
             <button
               type="button"
-              onClick={() => router.push("/tasks")}
+              onClick={() => router.push("/dashboard")}
               className="mt-5 w-full rounded-2xl bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
             >
               ตกลง
