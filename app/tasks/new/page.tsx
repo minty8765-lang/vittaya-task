@@ -1,17 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
-const mockEmployees = [
-  { id: "E001", name: "พนักงาน A" },
-  { id: "E002", name: "พนักงาน B" },
-  { id: "E003", name: "พนักงาน C" },
-  { id: "E004", name: "ผู้บริหาร" },
-  { id: "E005", name: "ผู้จัดการคลัง" },
-  { id: "E006", name: "ผู้จัดการฝ่ายขาย" },
-];
+type Employee = { id: string; name: string };
 
 export default function NewTaskPage() {
   const router = useRouter();
@@ -19,44 +13,66 @@ export default function NewTaskPage() {
   const [dueDate, setDueDate] = useState("");
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
-  const [assignType, setAssignType] = useState("");
   const [status, setStatus] = useState("");
   const [selectValue, setSelectValue] = useState("");
   const [assigneeError, setAssigneeError] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "employee")
+      .then(({ data }) => {
+        if (data) setEmployees(data.map((p) => ({ id: p.id, name: p.full_name || p.id })));
+      });
+  }, []);
 
   function handleAssigneeChange(value: string) {
     setSelectValue(value);
     setAssigneeError(false);
     if (value === "open") {
       setAssigneeId(null);
-      setAssignType("open");
       setStatus("open");
     } else {
       setAssigneeId(value || null);
-      setAssignType(value ? "assigned" : "");
       setStatus(value ? "in_progress" : "");
     }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!selectValue) {
       setAssigneeError(true);
       return;
     }
     setAssigneeError(false);
+    setIsSubmitting(true);
+    setSubmitError("");
 
-    const newTask = {
-      id: `T-${Date.now()}`,
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    const { error } = await supabase.from("tasks").insert({
       title,
       description,
-      dueDate,
-      assigneeId,
-      assignType,
+      due_date: dueDate || null,
+      created_by: user.id,
+      assigned_to: assigneeId,
       status,
-    };
-    const existing = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
-    localStorage.setItem("vittaya_tasks", JSON.stringify([...existing, newTask]));
+    });
+
+    setIsSubmitting(false);
+
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
 
     setShowModal(true);
   }
@@ -85,7 +101,7 @@ export default function NewTaskPage() {
               >
                 <option value="">-- เลือกผู้รับผิดชอบ --</option>
                 <option value="open">ไม่มีผู้รับผิดชอบ / เปิดให้พนักงานรับเอง</option>
-                {mockEmployees.map((emp) => (
+                {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
               </select>
@@ -112,13 +128,13 @@ export default function NewTaskPage() {
           </label>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-zinc-600">Mockup form — ยังไม่เชื่อมฐานข้อมูล</div>
+            <div className="text-sm text-red-500">{submitError}</div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href="/tasks" className="rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
                 ยกเลิก
               </Link>
-              <button type="button" onClick={handleSubmit} className="rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700">
-                สร้างงาน
+              <button type="button" onClick={handleSubmit} disabled={isSubmitting} className="rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">
+                {isSubmitting ? "กำลังบันทึก..." : "สร้างงาน"}
               </button>
             </div>
           </div>

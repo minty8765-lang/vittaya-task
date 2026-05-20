@@ -2,35 +2,53 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-
-const mockUsers = [
-  { id: "A001", name: "ผู้ดูแลระบบ", email: "admin@vittaya.com", password: "123456", role: "admin" },
-  { id: "E001", name: "พนักงาน A", email: "employee@vittaya.com", password: "123456", role: "employee" },
-];
+import { supabase } from "@/app/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const user = mockUsers.find((item) => item.email === email && item.password === password);
+    setError("");
+    setLoading(true);
 
-    if (!user) {
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (signInError || !data.user) {
       setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+      setLoading(false);
       return;
     }
 
-    setError("");
+    console.log("[login] auth user email:", data.user.email);
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("email", data.user.email)
+      .single();
+
+    console.log("[login] profile:", profile);
+    console.log("[login] profileError:", profileError);
+
+    if (!profile) {
+      setError("ไม่พบข้อมูลผู้ใช้ในระบบ");
+      setLoading(false);
+      return;
+    }
+
     localStorage.setItem("vittaya_current_user", JSON.stringify({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
+      id: profile.id,
+      name: profile.full_name,
+      email: data.user.email,
+      role: profile.role,
     }));
-    if (user.role === "admin") {
+
+    if (profile.role === "admin") {
       router.push("/dashboard");
     } else {
       router.push("/employee");
@@ -85,9 +103,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+            disabled={loading}
+            className="w-full rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:opacity-60"
           >
-            เข้าสู่ระบบ
+            {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
           </button>
         </form>
 

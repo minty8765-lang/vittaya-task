@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { supabase } from "@/app/lib/supabaseClient";
 
-type TaskStatus = "open" | "pending" | "in_progress" | "submitted" | "pending_approval" | "completed" | "approved" | "rejected";
+type TaskStatus = "open" | "in_progress" | "pending_approval" | "completed" | "rejected";
 
 type TaskItem = {
   id: string;
@@ -18,49 +19,6 @@ type TaskItem = {
   rejectReason?: string;
 };
 
-const employeeNames: Record<string, string> = {
-  E001: "พนักงาน A",
-  E002: "พนักงาน B",
-  E003: "พนักงาน C",
-  E004: "ผู้บริหาร",
-  E005: "ผู้จัดการคลัง",
-  E006: "ผู้จัดการฝ่ายขาย",
-};
-
-const initialTasks: TaskItem[] = [
-  { id: "T001", title: "ออกแบบระบบ", assignee: "พนักงาน A", status: "pending", due: "2026-05-30" },
-  { id: "T002", title: "เตรียมรายงาน", assignee: "พนักงาน B", status: "in_progress", due: "2026-05-28" },
-  {
-    id: "T003",
-    title: "ตรวจสอบสต็อก",
-    assignee: "พนักงาน A",
-    status: "pending_approval",
-    due: "2026-05-22",
-    submittedAt: "2026-05-21T14:30:00",
-    submissionNote: "ตรวจสอบสต็อกเรียบร้อยแล้ว พบสินค้าหมดอายุ 3 รายการ ได้แจ้งแผนกจัดซื้อเรียบร้อย",
-    submissionImage: "https://placehold.co/300x200/e2e8f0/64748b?text=Stock+Image",
-  },
-  {
-    id: "T004",
-    title: "สรุปยอดขาย",
-    assignee: "พนักงาน B",
-    status: "pending_approval",
-    due: "2026-05-19",
-    submittedAt: "2026-05-19T08:00:00",
-    submissionNote: "สรุปยอดขายเดือน เม.ย. รวม 1.2 ล้านบาท เพิ่มขึ้น 15% จากเดือนก่อน",
-    submissionImage: "https://placehold.co/300x200/e2e8f0/64748b?text=Sales+Report",
-  },
-  {
-    id: "T005",
-    title: "ทำรายงานประจำปี",
-    assignee: "พนักงาน A",
-    status: "rejected",
-    due: "2026-05-15",
-    submittedAt: "2026-05-15T16:00:00",
-    submissionNote: "จัดทำรายงานประจำปีฉบับแรก ข้อมูลยังไม่ครบ",
-  },
-];
-
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
 
@@ -68,7 +26,7 @@ function getTimeStatus(dueDate: string, submittedAt: string | undefined, status:
   const due = new Date(dueDate).getTime();
   const now = Date.now();
 
-  if ((status === "submitted" || status === "pending_approval" || status === "completed" || status === "approved" || status === "rejected") && submittedAt) {
+  if ((status === "pending_approval" || status === "completed" || status === "rejected") && submittedAt) {
     const submitted = new Date(submittedAt).getTime();
     const diff = due - submitted;
     if (diff >= 0) {
@@ -92,12 +50,10 @@ function getTimeStatus(dueDate: string, submittedAt: string | undefined, status:
 }
 
 const statusBadge: Record<TaskStatus, { label: string; className: string }> = {
-  pending: { label: "รอดำเนินการ", className: "bg-slate-100 text-slate-700" },
+  open: { label: "รอดำเนินการ", className: "bg-slate-100 text-slate-700" },
   in_progress: { label: "กำลังทำ", className: "bg-sky-100 text-sky-700" },
-  submitted: { label: "รออนุมัติ", className: "bg-amber-100 text-amber-700" },
   pending_approval: { label: "รออนุมัติ", className: "bg-amber-100 text-amber-700" },
   completed: { label: "สำเร็จ", className: "bg-emerald-100 text-emerald-700" },
-  approved: { label: "สำเร็จ", className: "bg-emerald-100 text-emerald-700" },
   rejected: { label: "ไม่ผ่านงาน", className: "bg-red-100 text-red-700" },
 };
 
@@ -106,7 +62,7 @@ type FilterKey = "all" | "open" | "in_progress" | "pending_approval" | "complete
 export default function DashboardPage() {
   const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState<FilterKey>("all");
-  const [taskList, setTaskList] = useState<TaskItem[]>(initialTasks);
+  const [taskList, setTaskList] = useState<TaskItem[]>([]);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState("");
 
@@ -118,30 +74,52 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    const stored: { id: string; title: string; dueDate: string; assigneeId: string | null; status: string }[] =
-      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    async function loadTasks() {
+      const { data } = await supabase
+        .from("tasks")
+        .select(`
+          id,
+          title,
+          due_date,
+          status,
+          reject_reason,
+          assignee:profiles!tasks_assigned_to_fkey(full_name),
+          submissions:task_submissions(description, image_urls, created_at)
+        `)
+        .order("created_at", { ascending: false });
 
-    if (stored.length > 0) {
-      const fromStorage = stored.map((t) => ({
-        id: t.id,
-        title: t.title,
-        assignee: t.assigneeId ? (employeeNames[t.assigneeId] || t.assigneeId) : "เปิดให้รับ",
-        status: (t.status === "open" ? "pending" : t.status) as TaskStatus,
-        due: t.dueDate || "",
-      }));
-      setTaskList(fromStorage);
+      if (!data) return;
+
+      setTaskList(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data.map((t: any) => {
+          const sub = t.submissions?.[0] ?? null;
+          return {
+            id: t.id,
+            title: t.title,
+            assignee: t.assignee?.full_name ?? "เปิดให้รับ",
+            status: t.status as TaskStatus,
+            due: t.due_date ?? "",
+            submittedAt: sub?.created_at ?? undefined,
+            submissionNote: sub?.description ?? undefined,
+            submissionImage: sub?.image_urls?.[0] ?? undefined,
+            rejectReason: t.reject_reason ?? undefined,
+          };
+        })
+      );
     }
+    loadTasks();
   }, []);
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("mockUser");
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("vittaya_current_user");
     router.push("/login");
   };
 
-  function handleApprove(id: string) {
-    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" } : t)));
+  async function handleApprove(id: string) {
+    await supabase.from("tasks").update({ status: "completed" }).eq("id", id);
+    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" as TaskStatus } : t)));
   }
 
   function handleReject(id: string) {
@@ -149,28 +127,32 @@ export default function DashboardPage() {
     setRejectReasonInput("");
   }
 
-  function confirmReject() {
+  async function confirmReject() {
     if (!rejectTargetId) return;
-    const stored: { id: string; status: string; rejectReason?: string }[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
-    localStorage.setItem("vittaya_tasks", JSON.stringify(stored.map((t) => t.id === rejectTargetId ? { ...t, status: "rejected", rejectReason: rejectReasonInput } : t)));
-    setTaskList((prev) => prev.map((t) => t.id === rejectTargetId ? { ...t, status: "rejected", rejectReason: rejectReasonInput } : t));
+    await supabase
+      .from("tasks")
+      .update({ status: "rejected", reject_reason: rejectReasonInput })
+      .eq("id", rejectTargetId);
+    setTaskList((prev) =>
+      prev.map((t) =>
+        t.id === rejectTargetId ? { ...t, status: "rejected" as TaskStatus, rejectReason: rejectReasonInput } : t
+      )
+    );
     setRejectTargetId(null);
     setRejectReasonInput("");
   }
 
   const tabs: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "ทั้งหมด", count: taskList.length },
-    { key: "open", label: "รอดำเนินการ", count: taskList.filter((t) => t.status === "open" || t.status === "pending").length },
+    { key: "open", label: "รอดำเนินการ", count: taskList.filter((t) => t.status === "open").length },
     { key: "in_progress", label: "กำลังทำ", count: taskList.filter((t) => t.status === "in_progress").length },
     { key: "pending_approval", label: "รออนุมัติ", count: taskList.filter((t) => t.status === "pending_approval").length },
-    { key: "completed", label: "สำเร็จ", count: taskList.filter((t) => t.status === "completed" || t.status === "approved").length },
+    { key: "completed", label: "สำเร็จ", count: taskList.filter((t) => t.status === "completed").length },
     { key: "rejected", label: "ไม่ผ่านงาน", count: taskList.filter((t) => t.status === "rejected").length },
   ];
 
   const filteredTasks = taskList.filter((task) => {
     if (selectedStatus === "all") return true;
-    if (selectedStatus === "open") return task.status === "open" || task.status === "pending";
-    if (selectedStatus === "completed") return task.status === "completed" || task.status === "approved";
     return task.status === selectedStatus;
   });
 
@@ -260,7 +242,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {filteredTasks.map((task) => {
               const timeStatus = getTimeStatus(task.due, task.submittedAt, task.status);
-              const badge = statusBadge[task.status] || statusBadge.pending;
+              const badge = statusBadge[task.status] ?? statusBadge.open;
               const isPendingApproval = task.status === "pending_approval";
               const isRejected = task.status === "rejected";
               return (

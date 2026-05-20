@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/app/lib/supabaseClient";
 
 type TaskStatus = "in_progress" | "pending_approval" | "completed" | "rejected";
 
@@ -157,8 +158,8 @@ const initialTasks: Task[] = [
 ];
 
 export default function EmployeePage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [openTasks, setOpenTasks] = useState<OpenTask[]>(initialOpenTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
   const [acceptMessage, setAcceptMessage] = useState("");
   const [activeTab, setActiveTab] = useState<StatusKey | "all">("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -312,10 +313,9 @@ export default function EmployeePage() {
     setTimeout(() => setAcceptMessage(""), 3000);
   };
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("mockUser");
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("vittaya_current_user");
     router.push("/login");
   };
 
