@@ -148,10 +148,14 @@ export default function TasksPage() {
   }, [activeTab, taskList]);
 
   function handleApprove(id: string) {
+    const stored: { id: string; status: string }[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    localStorage.setItem("vittaya_tasks", JSON.stringify(stored.map((t) => (t.id === id ? { ...t, status: "completed" } : t))));
     setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" } : t)));
   }
 
   function handleReject(id: string) {
+    const stored: { id: string; status: string }[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    localStorage.setItem("vittaya_tasks", JSON.stringify(stored.map((t) => (t.id === id ? { ...t, status: "rejected" } : t))));
     setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "rejected" } : t)));
   }
 
@@ -276,17 +280,6 @@ export default function TasksPage() {
                   </div>
                 )}
 
-                {isRejected && (
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      onClick={() => handleResubmit(task.id)}
-                      className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 active:scale-95"
-                    >
-                      แก้ไขและส่งใหม่
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })}

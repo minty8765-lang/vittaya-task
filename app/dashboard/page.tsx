@@ -138,10 +138,6 @@ export default function DashboardPage() {
     setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "rejected" } : t)));
   }
 
-  function handleResubmit(id: string) {
-    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "in_progress" } : t)));
-  }
-
   const tabs: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "ทั้งหมด", count: taskList.length },
     { key: "open", label: "รอดำเนินการ", count: taskList.filter((t) => t.status === "open" || t.status === "pending").length },
@@ -290,17 +286,6 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {isRejected && (
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => handleResubmit(task.id)}
-                        className="w-full rounded-xl border border-zinc-300 bg-white py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 active:scale-95"
-                      >
-                        แก้ไขและส่งใหม่
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })}
