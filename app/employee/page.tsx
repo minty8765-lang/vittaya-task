@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/app/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 
 type TaskStatus = "in_progress" | "pending_approval" | "completed" | "rejected";
 
@@ -182,38 +182,48 @@ export default function EmployeePage() {
   useEffect(() => {
     if (!currentUser) return;
 
-    const stored: { id: string; title: string; description: string; dueDate: string; assigneeId: string | null; assignType: string; status: string; rejectReason?: string }[] =
-      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    async function loadTasks() {
+      const [{ data }, { data: openData }] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id, title, description, due_date, status, reject_reason")
+          .eq("assigned_to", currentUser!.id),
+        supabase
+          .from("tasks")
+          .select("id, title, description, due_date")
+          .eq("status", "open")
+          .is("assigned_to", null),
+      ]);
 
-    if (stored.length === 0) return;
+      if (data) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setTasks(data.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description || "",
+          assigner: "Admin",
+          dueDate: t.due_date || "ไม่มีกำหนดส่ง",
+          priority: "ปานกลาง",
+          status: (t.status || "in_progress") as TaskStatus,
+          rejectReason: t.reject_reason ?? undefined,
+        })));
+      }
 
-    const assigned = stored
-      .filter((t) => t.assignType === "assigned" && t.assigneeId === currentUser.id)
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        description: t.description || "",
-        assigner: "Admin",
-        dueDate: t.dueDate || "ไม่มีกำหนดส่ง",
-        priority: "ปานกลาง",
-        status: (t.status || "in_progress") as TaskStatus,
-        rejectReason: t.rejectReason,
-      }));
+      if (openData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setOpenTasks(openData.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description || "",
+          dueDate: t.due_date || "ไม่มีกำหนดส่ง",
+          priority: "ปานกลาง",
+          assignType: "open" as const,
+          assigneeId: null,
+        })));
+      }
+    }
 
-    const open = stored
-      .filter((t) => t.assignType === "open" && t.assigneeId === null)
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        description: t.description || "",
-        dueDate: t.dueDate || "ไม่มีกำหนดส่ง",
-        priority: "ปานกลาง",
-        assignType: "open" as const,
-        assigneeId: null,
-      }));
-
-    setTasks(assigned);
-    setOpenTasks(open);
+    loadTasks();
   }, [currentUser]);
 
   const filteredTasks = tasks.filter((task) => activeTab === "all" || task.status === activeTab);
@@ -265,16 +275,23 @@ export default function EmployeePage() {
     }
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedTask) return;
 
-    const stored: { id: string; status: string }[] =
-      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
-    const updated = stored.map((t) =>
-      t.id === selectedTask.id ? { ...t, status: "pending_approval" } : t
-    );
-    localStorage.setItem("vittaya_tasks", JSON.stringify(updated));
+    const { error } = await supabase
+      .from("tasks")
+      .update({ status: "pending_approval" })
+      .eq("id", selectedTask.id);
+
+    if (error) return;
+
+    if (submissionNote.trim()) {
+      await supabase.from("task_submissions").insert({
+        task_id: selectedTask.id,
+        description: submissionNote.trim(),
+      });
+    }
 
     setTasks((current) =>
       current.map((task) =>
@@ -286,15 +303,13 @@ export default function EmployeePage() {
     closeModal();
   };
 
-  const handleAcceptTask = (task: OpenTask) => {
-    const stored: { id: string; assigneeId: string | null; assignType: string; status: string }[] =
-      JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
-    const updated = stored.map((t) =>
-      t.id === task.id
-        ? { ...t, assigneeId: currentUser?.id ?? "", assignType: "assigned", status: "in_progress" }
-        : t
-    );
-    localStorage.setItem("vittaya_tasks", JSON.stringify(updated));
+  const handleAcceptTask = async (task: OpenTask) => {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ assigned_to: currentUser!.id, status: "in_progress" })
+      .eq("id", task.id);
+
+    if (error) return;
 
     setOpenTasks((current) => current.filter((t) => t.id !== task.id));
     setTasks((current) => [

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { supabase } from "@/app/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 
 type TaskStatus = "open" | "in_progress" | "pending_approval" | "completed" | "rejected";
 
