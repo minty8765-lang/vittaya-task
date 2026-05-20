@@ -14,6 +14,7 @@ type Task = {
   submittedAt?: string;
   submissionNote?: string;
   submissionImage?: string;
+  rejectReason?: string;
 };
 
 const employeeNames: Record<string, string> = {
@@ -119,6 +120,8 @@ export default function TasksPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("all");
   const [taskList, setTaskList] = useState<Task[]>(initialTasks);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState("");
 
   useEffect(() => {
     const stored: { id: string; title: string; dueDate: string; assigneeId: string | null; assignType: string; status: string }[] =
@@ -154,13 +157,17 @@ export default function TasksPage() {
   }
 
   function handleReject(id: string) {
-    const stored: { id: string; status: string }[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
-    localStorage.setItem("vittaya_tasks", JSON.stringify(stored.map((t) => (t.id === id ? { ...t, status: "rejected" } : t))));
-    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "rejected" } : t)));
+    setRejectTargetId(id);
+    setRejectReasonInput("");
   }
 
-  function handleResubmit(id: string) {
-    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "in_progress" } : t)));
+  function confirmReject() {
+    if (!rejectTargetId) return;
+    const stored: { id: string; status: string; rejectReason?: string }[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    localStorage.setItem("vittaya_tasks", JSON.stringify(stored.map((t) => t.id === rejectTargetId ? { ...t, status: "rejected", rejectReason: rejectReasonInput } : t)));
+    setTaskList((prev) => prev.map((t) => t.id === rejectTargetId ? { ...t, status: "rejected", rejectReason: rejectReasonInput } : t));
+    setRejectTargetId(null);
+    setRejectReasonInput("");
   }
 
   return (
@@ -259,6 +266,12 @@ export default function TasksPage() {
                       />
                     </div>
                   )}
+                  {isRejected && task.rejectReason && (
+                    <div className="rounded-2xl bg-red-50 p-3 ring-1 ring-red-100 sm:col-span-2">
+                      <p className="text-[11px] uppercase tracking-[0.25em] text-red-600">เหตุผลที่ไม่อนุมัติ</p>
+                      <p className="mt-1 text-sm font-medium text-zinc-900">{task.rejectReason}</p>
+                    </div>
+                  )}
                 </div>
 
                 {isPendingApproval && (
@@ -301,6 +314,37 @@ export default function TasksPage() {
           Logout
         </button>
       </div>
+
+      {rejectTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <h2 className="text-base font-semibold text-zinc-950">ระบุเหตุผลที่ไม่อนุมัติ</h2>
+            <textarea
+              value={rejectReasonInput}
+              onChange={(e) => setRejectReasonInput(e.target.value)}
+              rows={3}
+              placeholder="กรอกเหตุผล..."
+              className="mt-3 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+            />
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setRejectTargetId(null)}
+                className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmReject}
+                className="flex-1 rounded-2xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                ยืนยันไม่อนุมัติ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

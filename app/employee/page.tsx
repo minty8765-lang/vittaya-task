@@ -14,6 +14,7 @@ type Task = {
   priority: string;
   status: TaskStatus;
   submittedAt?: string;
+  rejectReason?: string;
 };
 
 const currentEmployee = "พนักงาน A";
@@ -171,7 +172,7 @@ export default function EmployeePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const stored: { id: string; title: string; description: string; dueDate: string; assigneeId: string | null; assignType: string; status: string }[] =
+    const stored: { id: string; title: string; description: string; dueDate: string; assigneeId: string | null; assignType: string; status: string; rejectReason?: string }[] =
       JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
 
     if (stored.length === 0) return;
@@ -185,7 +186,8 @@ export default function EmployeePage() {
         assigner: "Admin",
         dueDate: t.dueDate || "ไม่มีกำหนดส่ง",
         priority: "ปานกลาง",
-        status: "in_progress" as TaskStatus,
+        status: (t.status || "in_progress") as TaskStatus,
+        rejectReason: t.rejectReason,
       }));
 
     const open = stored
@@ -512,6 +514,12 @@ export default function EmployeePage() {
                       )}
                     </div>
                   </div>
+                  {task.status === "rejected" && task.rejectReason && (
+                    <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2.5 ring-1 ring-red-100">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-red-600">เหตุผลที่ไม่อนุมัติ</p>
+                      <p className="mt-1 text-sm text-zinc-800">{task.rejectReason}</p>
+                    </div>
+                  )}
                 </div>
               ))
             )}

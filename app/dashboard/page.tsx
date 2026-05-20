@@ -15,6 +15,7 @@ type TaskItem = {
   submittedAt?: string;
   submissionNote?: string;
   submissionImage?: string;
+  rejectReason?: string;
 };
 
 const employeeNames: Record<string, string> = {
@@ -106,6 +107,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState<FilterKey>("all");
   const [taskList, setTaskList] = useState<TaskItem[]>(initialTasks);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState("");
 
   useEffect(() => {
     const stored: { id: string; title: string; dueDate: string; assigneeId: string | null; status: string }[] =
@@ -135,7 +138,17 @@ export default function DashboardPage() {
   }
 
   function handleReject(id: string) {
-    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "rejected" } : t)));
+    setRejectTargetId(id);
+    setRejectReasonInput("");
+  }
+
+  function confirmReject() {
+    if (!rejectTargetId) return;
+    const stored: { id: string; status: string; rejectReason?: string }[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
+    localStorage.setItem("vittaya_tasks", JSON.stringify(stored.map((t) => t.id === rejectTargetId ? { ...t, status: "rejected", rejectReason: rejectReasonInput } : t)));
+    setTaskList((prev) => prev.map((t) => t.id === rejectTargetId ? { ...t, status: "rejected", rejectReason: rejectReasonInput } : t));
+    setRejectTargetId(null);
+    setRejectReasonInput("");
   }
 
   const tabs: { key: FilterKey; label: string; count: number }[] = [
@@ -266,6 +279,12 @@ export default function DashboardPage() {
                       />
                     </div>
                   )}
+                  {isRejected && task.rejectReason && (
+                    <div className="mt-2 rounded-xl bg-red-50 px-3 py-2 ring-1 ring-red-100">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-red-600">เหตุผลที่ไม่อนุมัติ</p>
+                      <p className="mt-0.5 text-xs text-zinc-800">{task.rejectReason}</p>
+                    </div>
+                  )}
 
                   {isPendingApproval && (
                     <div className="mt-3 flex gap-2">
@@ -306,6 +325,37 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {rejectTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <h2 className="text-base font-semibold text-zinc-950">ระบุเหตุผลที่ไม่อนุมัติ</h2>
+            <textarea
+              value={rejectReasonInput}
+              onChange={(e) => setRejectReasonInput(e.target.value)}
+              rows={3}
+              placeholder="กรอกเหตุผล..."
+              className="mt-3 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+            />
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setRejectTargetId(null)}
+                className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmReject}
+                className="flex-1 rounded-2xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                ยืนยันไม่อนุมัติ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
