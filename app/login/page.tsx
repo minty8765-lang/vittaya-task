@@ -32,8 +32,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-100 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-md rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 sm:p-10">
+    <div className="min-h-screen bg-zinc-100 px-4 py-6">
+      <div className="mx-auto w-full max-w-md sm:max-w-lg rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200 sm:p-10">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex h-[120px] w-[120px] items-center justify-center rounded-3xl bg-sky-50 shadow-sm">
             <img src="/logo.png" alt="Vittaya Task logo" className="h-[96px] w-[96px] object-contain" />

@@ -201,7 +201,7 @@ export default function KpiPage() {
           </div>
         </div>
 
-        <div className="mt-8 flex justify-center pb-8">
+        <div className="mt-6 flex justify-center">
           <button
             type="button"
             onClick={handleLogout}

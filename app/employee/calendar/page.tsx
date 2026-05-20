@@ -267,8 +267,7 @@ export default function EmployeeCalendarPage() {
           </div>
         )}
 
-        {/* Logout — ล่างสุด */}
-        <div className="pt-2">
+        <div className="mt-6 flex justify-center">
           <button
             type="button"
             onClick={handleLogout}

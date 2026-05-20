@@ -311,7 +311,7 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        <div className="flex justify-center">
+        <div className="mt-6 flex justify-center">
           <button
             type="button"
             onClick={handleLogout}

@@ -310,7 +310,7 @@ export default function EmployeePage() {
 
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-6 sm:px-5 sm:py-7">
-      <div className="mx-auto w-full max-w-md sm:max-w-lg">
+      <div className="mx-auto w-full max-w-md sm:max-w-lg space-y-6">
         <div className="rounded-[1.75rem] bg-white p-4 shadow-lg ring-1 ring-zinc-200 sm:p-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>

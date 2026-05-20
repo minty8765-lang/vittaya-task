@@ -62,8 +62,8 @@ export default function NewTaskPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-100 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
+    <main className="min-h-screen bg-zinc-100 px-4 py-6">
+      <div className="mx-auto w-full max-w-md sm:max-w-lg rounded-3xl bg-white p-8 shadow-sm ring-1 ring-zinc-200">
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-sky-600">สร้างงานใหม่</p>
           <h1 className="mt-3 text-3xl font-semibold text-zinc-950">ฟอร์มสร้างงาน</h1>
