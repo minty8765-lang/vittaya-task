@@ -7,6 +7,7 @@ type TaskStatus = "pending" | "in_progress" | "submitted" | "pending_approval" |
 
 type Task = {
   id: string;
+  task_code?: string;
   title: string;
   assignee: string;
   status: TaskStatus;
@@ -221,7 +222,7 @@ export default function TasksPage() {
               <div key={task.id} className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">{task.id}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                     <h2 className="mt-2 text-base font-semibold text-zinc-950">{task.title}</h2>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.className}`}>

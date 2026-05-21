@@ -9,6 +9,7 @@ type TaskStatus = "open" | "in_progress" | "pending_approval" | "completed" | "r
 
 type TaskItem = {
   id: string;
+  task_code?: string;
   title: string;
   assignee: string;
   status: TaskStatus;
@@ -79,6 +80,7 @@ export default function DashboardPage() {
         .from("tasks")
         .select(`
           id,
+          task_code,
           title,
           due_date,
           status,
@@ -96,6 +98,7 @@ export default function DashboardPage() {
           const sub = t.submissions?.[0] ?? null;
           return {
             id: t.id,
+            task_code: t.task_code ?? undefined,
             title: t.title,
             assignee: t.assignee?.full_name || t.assignee?.email || "งานเปิดรับ",
             status: t.status as TaskStatus,
@@ -261,7 +264,7 @@ export default function DashboardPage() {
                 <div key={task.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</p>
+                      <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                       <h3 className="mt-1 text-base font-semibold text-zinc-950">{task.title}</h3>
                       <p className="mt-1 text-xs text-zinc-600">ผู้รับผิดชอบ: {task.assignee}</p>
                     </div>

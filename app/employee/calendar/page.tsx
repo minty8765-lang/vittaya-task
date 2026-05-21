@@ -8,6 +8,7 @@ type TaskStatus = "in_progress" | "pending_approval" | "completed" | "rejected";
 
 type Task = {
   id: string;
+  task_code?: string;
   title: string;
   description: string;
   due_date: string | null;
@@ -100,12 +101,13 @@ export default function EmployeeCalendarPage() {
     const user = JSON.parse(raw);
     supabase
       .from("tasks")
-      .select("id, title, description, status, due_date")
+      .select("id, task_code, title, description, status, due_date")
       .eq("assigned_to", user.id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }) => {
         if (data) setTasks(data.map((t: any) => ({
           id: t.id,
+          task_code: t.task_code ?? undefined,
           title: t.title,
           description: t.description || "",
           due_date: t.due_date || null,
@@ -268,7 +270,7 @@ export default function EmployeeCalendarPage() {
                       {task.priority}
                     </span>
                   </div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">{task.id.slice(0, 8).toUpperCase()}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">{task.task_code ?? task.id.slice(0, 8)}</p>
                   <h3 className="mt-1 text-base font-semibold text-zinc-950">{task.title}</h3>
                   <p className="mt-1 text-xs leading-5 text-zinc-500">{task.description}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">

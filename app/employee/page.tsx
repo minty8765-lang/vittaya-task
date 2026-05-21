@@ -8,6 +8,7 @@ type TaskStatus = "in_progress" | "pending_approval" | "completed" | "rejected";
 
 type Task = {
   id: string;
+  task_code?: string;
   title: string;
   description: string;
   assigner: string;
@@ -68,6 +69,7 @@ const statusStyles: Record<TaskStatus, string> = {
 
 type OpenTask = {
   id: string;
+  task_code?: string;
   title: string;
   description: string;
   dueDate: string;
@@ -104,11 +106,11 @@ export default function EmployeePage() {
       const [{ data }, { data: openData }] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, title, description, due_date, status, reject_reason")
+          .select("id, task_code, title, description, due_date, status, reject_reason")
           .eq("assigned_to", currentUser!.id),
         supabase
           .from("tasks")
-          .select("id, title, description, due_date")
+          .select("id, task_code, title, description, due_date")
           .eq("status", "open")
           .is("assigned_to", null),
       ]);
@@ -117,6 +119,7 @@ export default function EmployeePage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setTasks(data.map((t: any) => ({
           id: t.id,
+          task_code: t.task_code ?? undefined,
           title: t.title,
           description: t.description || "",
           assigner: "Admin",
@@ -131,6 +134,7 @@ export default function EmployeePage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setOpenTasks(openData.map((t: any) => ({
           id: t.id,
+          task_code: t.task_code ?? undefined,
           title: t.title,
           description: t.description || "",
           dueDate: t.due_date || "",
@@ -371,7 +375,7 @@ export default function EmployeePage() {
                           <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">เปิดรับ</span>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</p>
+                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                           <h3 className="mt-1 text-lg font-semibold text-zinc-950">{task.title}</h3>
                           <p className="mt-2 text-sm leading-6 text-zinc-600">{task.description}</p>
                         </div>
@@ -435,7 +439,7 @@ export default function EmployeePage() {
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusStyles[task.status]}`}>{statusLabels[task.status]}</span>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                         <h2 className="mt-1 text-xl font-semibold text-zinc-950 sm:text-2xl">{task.title}</h2>
                         <p className="mt-2 text-sm leading-6 text-zinc-600">{task.description}</p>
                       </div>
