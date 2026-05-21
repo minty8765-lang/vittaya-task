@@ -11,7 +11,9 @@ type TaskItem = {
   id: string;
   task_code?: string;
   title: string;
+  description?: string;
   assignee: string;
+  assignedTo?: string;
   status: TaskStatus;
   due: string;
   submittedAt?: string;
@@ -66,6 +68,13 @@ export default function DashboardPage() {
   const [taskList, setTaskList] = useState<TaskItem[]>([]);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState("");
+  const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editAssignedTo, setEditAssignedTo] = useState("");
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("vittaya_current_user");
@@ -75,6 +84,17 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("role", "employee")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }) => {
+        if (data) setEmployees(data.map((p: any) => ({ id: p.id, name: p.full_name || p.email || p.id })));
+      });
+  }, []);
+
+  useEffect(() => {
     async function loadTasks() {
       const { data } = await supabase
         .from("tasks")
@@ -82,6 +102,8 @@ export default function DashboardPage() {
           id,
           task_code,
           title,
+          description,
+          assigned_to,
           due_date,
           status,
           reject_reason,
@@ -100,7 +122,9 @@ export default function DashboardPage() {
             id: t.id,
             task_code: t.task_code ?? undefined,
             title: t.title,
+            description: t.description ?? "",
             assignee: t.assignee?.full_name || t.assignee?.email || "งานเปิดรับ",
+            assignedTo: t.assigned_to ?? "",
             status: t.status as TaskStatus,
             due: t.due_date ?? "",
             submittedAt: sub?.created_at ?? undefined,
@@ -155,6 +179,51 @@ export default function DashboardPage() {
     );
     setRejectTargetId(null);
     setRejectReasonInput("");
+  }
+
+  function handleEdit(task: TaskItem) {
+    setEditTargetId(task.id);
+    setEditTitle(task.title);
+    setEditDescription(task.description ?? "");
+    setEditDueDate(task.due);
+    setEditAssignedTo(task.assignedTo ?? "");
+  }
+
+  async function confirmEdit() {
+    if (!editTargetId) return;
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        title: editTitle,
+        description: editDescription,
+        due_date: editDueDate || null,
+        assigned_to: editAssignedTo || null,
+      })
+      .eq("id", editTargetId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    const assigneeName = employees.find((e) => e.id === editAssignedTo)?.name ?? "งานเปิดรับ";
+    setTaskList((prev) =>
+      prev.map((t) =>
+        t.id === editTargetId
+          ? { ...t, title: editTitle, description: editDescription, due: editDueDate, assignee: assigneeName, assignedTo: editAssignedTo }
+          : t
+      )
+    );
+    setEditTargetId(null);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTargetId) return;
+    const { error } = await supabase.from("tasks").delete().eq("id", deleteTargetId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setTaskList((prev) => prev.filter((t) => t.id !== deleteTargetId));
+    setDeleteTargetId(null);
   }
 
   const tabs: { key: FilterKey; label: string; count: number }[] = [
@@ -276,6 +345,22 @@ export default function DashboardPage() {
                         </span>
                       )}
                       <span className="text-xs text-zinc-500">{task.due ? `due ${task.due}` : "ไม่มีกำหนด"}</span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(task)}
+                          className="rounded-lg bg-zinc-100 px-2 py-1 text-[11px] font-semibold text-zinc-600 hover:bg-zinc-200"
+                        >
+                          แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTargetId(task.id)}
+                          className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-100"
+                        >
+                          ลบ
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -345,6 +430,96 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <h2 className="text-base font-semibold text-zinc-950">ยืนยันการลบงาน</h2>
+            <p className="mt-2 text-sm text-zinc-600">ต้องการลบงานนี้หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetId(null)}
+                className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 rounded-2xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                ยืนยันลบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+            <h2 className="text-base font-semibold text-zinc-950">แก้ไขงาน</h2>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600">ชื่องาน</label>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600">รายละเอียด</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600">วันกำหนดส่ง</label>
+                <input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-600">ผู้รับผิดชอบ</label>
+                <select
+                  value={editAssignedTo}
+                  onChange={(e) => setEditAssignedTo(e.target.value)}
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                >
+                  <option value="">ไม่ระบุ (งานเปิดรับ)</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEditTargetId(null)}
+                className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmEdit}
+                className="flex-1 rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+              >
+                บันทึก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {rejectTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
