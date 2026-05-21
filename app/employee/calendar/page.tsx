@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 type TaskStatus = "in_progress" | "pending_approval" | "completed" | "rejected";
 
@@ -9,11 +10,9 @@ type Task = {
   id: string;
   title: string;
   description: string;
-  assigner: string;
-  dueDate: string;
+  due_date: string | null;
   priority: string;
   status: TaskStatus;
-  submittedAt?: string;
 };
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -30,13 +29,6 @@ const statusStyles: Record<TaskStatus, string> = {
   rejected: "bg-rose-100 text-rose-800",
 };
 
-const tasks: Task[] = [
-  { id: "T-101", title: "จัดทำรายงานสรุปผล", description: "รวบรวมข้อมูลยอดขายประจำเดือนและจัดทำสรุปรายงานให้ผู้บริหาร", assigner: "ผู้บริหาร", dueDate: "2026-05-30", priority: "สูง", status: "in_progress" },
-  { id: "T-102", title: "ตรวจสอบคลังสินค้า", description: "ตรวจสอบสต็อกสินค้าและปรับข้อมูลในระบบให้ถูกต้อง", assigner: "ผู้จัดการคลัง", dueDate: "2026-05-24", priority: "ปานกลาง", status: "pending_approval", submittedAt: "2026-05-23T10:00:00" },
-  { id: "T-103", title: "ส่งเอกสารสัญญา", description: "ตรวจสอบสัญญาและส่งให้ลูกค้าพร้อมเอกสารที่เกี่ยวข้อง", assigner: "ผู้บริหาร", dueDate: "2026-05-22", priority: "สูง", status: "completed", submittedAt: "2026-05-21T09:00:00" },
-  { id: "T-104", title: "แก้ไขใบเสนอราคา", description: "ปรับแก้ใบเสนอราคาตามคำติชมของลูกค้าและส่งให้ตรวจสอบใหม่", assigner: "ผู้จัดการฝ่ายขาย", dueDate: "2026-05-27", priority: "ต่ำ", status: "rejected", submittedAt: "2026-05-29T18:00:00" },
-  { id: "T-105", title: "ปรับปรุงข้อมูลลูกค้า", description: "อัปเดตข้อมูลลูกค้าในระบบ CRM ตามการติดต่อล่าสุด", assigner: "ผู้ช่วยผู้จัดการ", dueDate: "2026-05-26", priority: "ปานกลาง", status: "in_progress" },
-];
 
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
@@ -85,12 +77,6 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-const tasksByDate = tasks.reduce<Record<string, Task[]>>((acc, task) => {
-  if (!acc[task.dueDate]) acc[task.dueDate] = [];
-  acc[task.dueDate].push(task);
-  return acc;
-}, {});
-
 const statusDotColor: Record<TaskStatus, string> = {
   in_progress: "bg-sky-500",
   pending_approval: "bg-amber-400",
@@ -106,6 +92,35 @@ export default function EmployeeCalendarPage() {
   const [viewYear, setViewYear] = useState(2026);
   const [viewMonth, setViewMonth] = useState(4); // พฤษภาคม = index 4
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("vittaya_current_user");
+    if (!raw) { router.push("/login"); return; }
+    const user = JSON.parse(raw);
+    supabase
+      .from("tasks")
+      .select("id, title, description, status, due_date")
+      .eq("assigned_to", user.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }) => {
+        if (data) setTasks(data.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description || "",
+          due_date: t.due_date || null,
+          priority: "ปานกลาง",
+          status: t.status as TaskStatus,
+        })));
+      });
+  }, [router]);
+
+  const tasksByDate = tasks.reduce<Record<string, Task[]>>((acc, task) => {
+    if (!task.due_date) return acc;
+    if (!acc[task.due_date]) acc[task.due_date] = [];
+    acc[task.due_date].push(task);
+    return acc;
+  }, {});
 
   const cells = buildCalendarCells(viewYear, viewMonth);
   const selectedTasks = selectedDate ? (tasksByDate[selectedDate] ?? []) : [];
@@ -122,8 +137,9 @@ export default function EmployeeCalendarPage() {
     setSelectedDate(null);
   }
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") window.localStorage.removeItem("mockUser");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("vittaya_current_user");
     router.push("/login");
   };
 
@@ -241,7 +257,7 @@ export default function EmployeeCalendarPage() {
             )}
 
             {selectedTasks.map((task) => {
-              const ts = getTimeStatus(task.dueDate, task.submittedAt, task.status);
+              const ts = getTimeStatus(task.due_date!, undefined, task.status);
               return (
                 <div key={task.id} className="rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-zinc-200">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -252,12 +268,12 @@ export default function EmployeeCalendarPage() {
                       {task.priority}
                     </span>
                   </div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">{task.id}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">{task.id.slice(0, 8).toUpperCase()}</p>
                   <h3 className="mt-1 text-base font-semibold text-zinc-950">{task.title}</h3>
                   <p className="mt-1 text-xs leading-5 text-zinc-500">{task.description}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <span className="text-xs text-zinc-500">
-                      Due: <span className="font-medium text-zinc-700">{task.dueDate}</span>
+                      Due: <span className="font-medium text-zinc-700">{task.due_date}</span>
                     </span>
                     <span className={`text-xs font-semibold ${ts.color}`}>{ts.text}</span>
                   </div>

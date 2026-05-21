@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 type EmployeeKPI = {
   name: string;
@@ -19,28 +20,12 @@ type EmployeeKPI = {
 
 type StoredTask = {
   id: string;
-  title: string;
-  assigneeId: string | null;
-  assignType: string;
   status: string;
-  dueDate: string;
+  assigned_to: string | null;
+  due_date: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  assignee: any;
 };
-
-const employeeNames: Record<string, string> = {
-  E001: "พนักงาน A",
-  E002: "พนักงาน B",
-  E003: "พนักงาน C",
-  E004: "ผู้บริหาร",
-  E005: "ผู้จัดการคลัง",
-  E006: "ผู้จัดการฝ่ายขาย",
-};
-
-const mockEmployees: EmployeeKPI[] = [
-  { name: "พนักงาน A", totalTasks: 12, onTimeTasks: 9, completedTasks: 11, lateTasks: 1, overdueTasks: 1, inProgressTasks: 1, pendingApprovalTasks: 0, rejectedTasks: 0, completionRate: 92 },
-  { name: "พนักงาน B", totalTasks: 8, onTimeTasks: 5, completedTasks: 6, lateTasks: 2, overdueTasks: 0, inProgressTasks: 1, pendingApprovalTasks: 1, rejectedTasks: 0, completionRate: 75 },
-  { name: "พนักงาน C", totalTasks: 0, onTimeTasks: 0, completedTasks: 0, lateTasks: 0, overdueTasks: 0, inProgressTasks: 0, pendingApprovalTasks: 0, rejectedTasks: 0, completionRate: 0 },
-  { name: "พนักงาน D", totalTasks: 5, onTimeTasks: 2, completedTasks: 3, lateTasks: 2, overdueTasks: 1, inProgressTasks: 0, pendingApprovalTasks: 1, rejectedTasks: 1, completionRate: 60 },
-];
 
 function calcKPI(emp: EmployeeKPI) {
   const t = emp.totalTasks;
@@ -73,29 +58,34 @@ export default function KpiPage() {
   }, [router]);
 
   useEffect(() => {
-    const raw: StoredTask[] = JSON.parse(localStorage.getItem("vittaya_tasks") || "[]");
-    setTaskList(raw);
+    supabase
+      .from("tasks")
+      .select("id, status, assigned_to, due_date, assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
+      .not("assigned_to", "is", null)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }) => { if (data) setTaskList(data as any); });
   }, []);
 
   const employees = (() => {
-    if (taskList.length === 0) return mockEmployees;
+    if (taskList.length === 0) return [];
 
     const grouped: Record<string, StoredTask[]> = {};
     for (const t of taskList) {
-      if (!t.assigneeId) continue;
-      if (!grouped[t.assigneeId]) grouped[t.assigneeId] = [];
-      grouped[t.assigneeId].push(t);
+      if (!t.assigned_to) continue;
+      if (!grouped[t.assigned_to]) grouped[t.assigned_to] = [];
+      grouped[t.assigned_to].push(t);
     }
 
-    return Object.entries(grouped).map(([assigneeId, tasks]) => {
+    return Object.entries(grouped).map(([, tasks]) => {
       const total = tasks.length;
       const completed = tasks.filter((t) => t.status === "completed").length;
       const inProgress = tasks.filter((t) => t.status === "in_progress").length;
       const pendingApproval = tasks.filter((t) => t.status === "pending_approval").length;
       const rejected = tasks.filter((t) => t.status === "rejected").length;
       const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const assignee = tasks[0]?.assignee;
       return {
-        name: employeeNames[assigneeId] || assigneeId,
+        name: assignee?.full_name || assignee?.email || "ไม่ระบุชื่อ",
         totalTasks: total,
         onTimeTasks: 0,
         completedTasks: completed,

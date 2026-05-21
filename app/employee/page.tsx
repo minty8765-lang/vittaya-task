@@ -72,90 +72,8 @@ type OpenTask = {
   description: string;
   dueDate: string;
   priority: string;
-  assignType: "open";
-  assigneeId: null;
 };
 
-const initialOpenTasks: OpenTask[] = [
-  {
-    id: "T-201",
-    title: "เตรียมเอกสารประชุม",
-    description: "จัดเตรียมสไลด์และเอกสารสำหรับการประชุมประจำเดือน",
-    dueDate: "2026-05-28",
-    priority: "ปานกลาง",
-    assignType: "open",
-    assigneeId: null,
-  },
-  {
-    id: "T-202",
-    title: "ตอบอีเมลลูกค้า",
-    description: "ติดตามและตอบกลับอีเมลจากลูกค้าที่ยังค้างอยู่",
-    dueDate: "2026-05-25",
-    priority: "สูง",
-    assignType: "open",
-    assigneeId: null,
-  },
-  {
-    id: "T-203",
-    title: "อัปเดตข้อมูลบนเว็บไซต์",
-    description: "แก้ไขข้อมูลสินค้าและราคาบนหน้าเว็บไซต์ให้เป็นปัจจุบัน",
-    dueDate: "2026-05-30",
-    priority: "ต่ำ",
-    assignType: "open",
-    assigneeId: null,
-  },
-];
-
-const initialTasks: Task[] = [
-  {
-    id: "T-101",
-    title: "จัดทำรายงานสรุปผล",
-    description: "รวบรวมข้อมูลยอดขายประจำเดือนและจัดทำสรุปรายงานให้ผู้บริหาร",
-    assigner: "ผู้บริหาร",
-    dueDate: "2026-05-30",
-    priority: "สูง",
-    status: "in_progress",
-  },
-  {
-    id: "T-102",
-    title: "ตรวจสอบคลังสินค้า",
-    description: "ตรวจสอบสต็อกสินค้าและปรับข้อมูลในระบบให้ถูกต้อง",
-    assigner: "ผู้จัดการคลัง",
-    dueDate: "2026-05-24",
-    priority: "ปานกลาง",
-    status: "pending_approval",
-    submittedAt: "2026-05-23T10:00:00",
-  },
-  {
-    id: "T-103",
-    title: "ส่งเอกสารสัญญา",
-    description: "ตรวจสอบสัญญาและส่งให้ลูกค้าพร้อมเอกสารที่เกี่ยวข้อง",
-    assigner: "ผู้บริหาร",
-    dueDate: "2026-05-22",
-    priority: "สูง",
-    status: "completed",
-    submittedAt: "2026-05-21T09:00:00",
-  },
-  {
-    id: "T-104",
-    title: "แก้ไขใบเสนอราคา",
-    description: "ปรับแก้ใบเสนอราคาตามคำติชมของลูกค้าและส่งให้ตรวจสอบใหม่",
-    assigner: "ผู้จัดการฝ่ายขาย",
-    dueDate: "2026-05-27",
-    priority: "ต่ำ",
-    status: "rejected",
-    submittedAt: "2026-05-29T18:00:00",
-  },
-  {
-    id: "T-105",
-    title: "ปรับปรุงข้อมูลลูกค้า",
-    description: "อัปเดตข้อมูลลูกค้าในระบบ CRM ตามการติดต่อล่าสุด",
-    assigner: "ผู้ช่วยผู้จัดการ",
-    dueDate: "2026-05-26",
-    priority: "ปานกลาง",
-    status: "in_progress",
-  },
-];
 
 export default function EmployeePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -202,7 +120,7 @@ export default function EmployeePage() {
           title: t.title,
           description: t.description || "",
           assigner: "Admin",
-          dueDate: t.due_date || "ไม่มีกำหนดส่ง",
+          dueDate: t.due_date || "",
           priority: "ปานกลาง",
           status: (t.status || "in_progress") as TaskStatus,
           rejectReason: t.reject_reason ?? undefined,
@@ -215,10 +133,8 @@ export default function EmployeePage() {
           id: t.id,
           title: t.title,
           description: t.description || "",
-          dueDate: t.due_date || "ไม่มีกำหนดส่ง",
+          dueDate: t.due_date || "",
           priority: "ปานกลาง",
-          assignType: "open" as const,
-          assigneeId: null,
         })));
       }
     }
@@ -277,7 +193,21 @@ export default function EmployeePage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedTask) return;
+    if (!selectedTask || !currentUser) return;
+
+    let imageUrls: string[] = [];
+    if (attachmentFile) {
+      const path = `${selectedTask.id}-${Date.now()}-${attachmentFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("task-images")
+        .upload(path, attachmentFile);
+      if (uploadError) {
+        alert(uploadError.message);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("task-images").getPublicUrl(path);
+      imageUrls = [urlData.publicUrl];
+    }
 
     const { error } = await supabase
       .from("tasks")
@@ -286,12 +216,12 @@ export default function EmployeePage() {
 
     if (error) return;
 
-    if (submissionNote.trim()) {
-      await supabase.from("task_submissions").insert({
-        task_id: selectedTask.id,
-        description: submissionNote.trim(),
-      });
-    }
+    await supabase.from("task_submissions").insert({
+      task_id: selectedTask.id,
+      submitted_by: currentUser.id,
+      description: submissionNote.trim() || null,
+      image_urls: imageUrls,
+    });
 
     setTasks((current) =>
       current.map((task) =>
@@ -441,12 +371,12 @@ export default function EmployeePage() {
                           <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">เปิดรับ</span>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.id}</p>
+                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</p>
                           <h3 className="mt-1 text-lg font-semibold text-zinc-950">{task.title}</h3>
                           <p className="mt-2 text-sm leading-6 text-zinc-600">{task.description}</p>
                         </div>
                         <p className="text-sm text-zinc-600">
-                          Due date: <span className="font-semibold text-zinc-900">{task.dueDate}</span>
+                          Due date: <span className="font-semibold text-zinc-900">{task.dueDate || "ไม่มีกำหนด"}</span>
                         </p>
                       </div>
                       <div className="flex flex-col gap-2 sm:items-end">
@@ -505,7 +435,7 @@ export default function EmployeePage() {
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusStyles[task.status]}`}>{statusLabels[task.status]}</span>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.id}</p>
+                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</p>
                         <h2 className="mt-1 text-xl font-semibold text-zinc-950 sm:text-2xl">{task.title}</h2>
                         <p className="mt-2 text-sm leading-6 text-zinc-600">{task.description}</p>
                       </div>
@@ -514,10 +444,10 @@ export default function EmployeePage() {
                           ผู้สั่งงาน: <span className="font-semibold text-zinc-900">{task.assigner}</span>
                         </p>
                         <p className="text-sm text-zinc-600">
-                          Due date: <span className="font-semibold text-zinc-900">{task.dueDate}</span>
+                          Due date: <span className="font-semibold text-zinc-900">{task.dueDate || "ไม่มีกำหนด"}</span>
                         </p>
                       </div>
-                      {(() => {
+                      {task.dueDate && (() => {
                         const ts = getTimeStatus(task.dueDate, task.submittedAt, task.status);
                         return (
                           <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${ts.color}`}>

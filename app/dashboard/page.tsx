@@ -15,7 +15,7 @@ type TaskItem = {
   due: string;
   submittedAt?: string;
   submissionNote?: string;
-  submissionImage?: string;
+  submissionImages?: string[];
   rejectReason?: string;
 };
 
@@ -83,7 +83,7 @@ export default function DashboardPage() {
           due_date,
           status,
           reject_reason,
-          assignee:profiles!tasks_assigned_to_fkey(full_name),
+          assignee:profiles!tasks_assigned_to_fkey(full_name, email),
           submissions:task_submissions(description, image_urls, created_at)
         `)
         .order("created_at", { ascending: false });
@@ -97,12 +97,12 @@ export default function DashboardPage() {
           return {
             id: t.id,
             title: t.title,
-            assignee: t.assignee?.full_name ?? "เปิดให้รับ",
+            assignee: t.assignee?.full_name || t.assignee?.email || "งานเปิดรับ",
             status: t.status as TaskStatus,
             due: t.due_date ?? "",
             submittedAt: sub?.created_at ?? undefined,
             submissionNote: sub?.description ?? undefined,
-            submissionImage: sub?.image_urls?.[0] ?? undefined,
+            submissionImages: sub?.image_urls ?? [],
             rejectReason: t.reject_reason ?? undefined,
           };
         })
@@ -118,7 +118,11 @@ export default function DashboardPage() {
   };
 
   async function handleApprove(id: string) {
-    await supabase.from("tasks").update({ status: "completed" }).eq("id", id);
+    const { error } = await supabase.from("tasks").update({ status: "completed" }).eq("id", id);
+    if (error) {
+      alert(error.message);
+      return;
+    }
     setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" as TaskStatus } : t)));
   }
 
@@ -129,10 +133,18 @@ export default function DashboardPage() {
 
   async function confirmReject() {
     if (!rejectTargetId) return;
-    await supabase
+    if (!rejectReasonInput.trim()) {
+      alert("กรุณากรอกเหตุผลที่ไม่อนุมัติก่อน");
+      return;
+    }
+    const { error } = await supabase
       .from("tasks")
       .update({ status: "rejected", reject_reason: rejectReasonInput })
       .eq("id", rejectTargetId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
     setTaskList((prev) =>
       prev.map((t) =>
         t.id === rejectTargetId ? { ...t, status: "rejected" as TaskStatus, rejectReason: rejectReasonInput } : t
@@ -241,7 +253,7 @@ export default function DashboardPage() {
 
           <div className="space-y-3">
             {filteredTasks.map((task) => {
-              const timeStatus = getTimeStatus(task.due, task.submittedAt, task.status);
+              const timeStatus = task.due ? getTimeStatus(task.due, task.submittedAt, task.status) : null;
               const badge = statusBadge[task.status] ?? statusBadge.open;
               const isPendingApproval = task.status === "pending_approval";
               const isRejected = task.status === "rejected";
@@ -249,16 +261,18 @@ export default function DashboardPage() {
                 <div key={task.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.id}</p>
+                      <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.id.slice(0, 8).toUpperCase()}</p>
                       <h3 className="mt-1 text-base font-semibold text-zinc-950">{task.title}</h3>
                       <p className="mt-1 text-xs text-zinc-600">ผู้รับผิดชอบ: {task.assignee}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${timeStatus.color}`}>
-                        {timeStatus.text}
-                      </span>
-                      <span className="text-xs text-zinc-500">due {task.due}</span>
+                      {timeStatus && (
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${timeStatus.color}`}>
+                          {timeStatus.text}
+                        </span>
+                      )}
+                      <span className="text-xs text-zinc-500">{task.due ? `due ${task.due}` : "ไม่มีกำหนด"}</span>
                     </div>
                   </div>
 
@@ -268,14 +282,18 @@ export default function DashboardPage() {
                       <p className="mt-0.5 text-xs text-zinc-800">{task.submissionNote}</p>
                     </div>
                   )}
-                  {(isPendingApproval || isRejected) && task.submissionImage && (
-                    <div className="mt-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={task.submissionImage}
-                        alt="รูปที่แนบ"
-                        className="h-20 w-full rounded-xl object-cover"
-                      />
+                  {(isPendingApproval || isRejected) && task.submissionImages && task.submissionImages.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {task.submissionImages.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`รูปที่แนบ ${i + 1}`}
+                            className="h-20 w-20 rounded-xl object-cover"
+                          />
+                        </a>
+                      ))}
                     </div>
                   )}
                   {isRejected && task.rejectReason && (
