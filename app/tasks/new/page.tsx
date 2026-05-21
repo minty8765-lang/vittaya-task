@@ -24,10 +24,10 @@ export default function NewTaskPage() {
   useEffect(() => {
     supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, email")
       .eq("role", "employee")
       .then(({ data }) => {
-        if (data) setEmployees(data.map((p) => ({ id: p.id, name: p.full_name || p.id })));
+        if (data) setEmployees(data.map((p) => ({ id: p.id, name: p.full_name || p.email || p.id })));
       });
   }, []);
 

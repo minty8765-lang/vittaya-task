@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 type Employee = {
   id: string;
@@ -15,41 +16,6 @@ type Employee = {
   kpiScore: number;
 };
 
-const initialEmployees: Employee[] = [
-  {
-    id: "E001",
-    name: "ธันวา ปัญญา",
-    email: "tanwa@vittaya.com",
-    position: "หัวหน้าทีม",
-    role: "admin",
-    status: "active",
-    totalTasks: 28,
-    completedTasks: 24,
-    kpiScore: 87,
-  },
-  {
-    id: "E002",
-    name: "กมล ชาญ",
-    email: "kamon@vittaya.com",
-    position: "พนักงานขาย",
-    role: "employee",
-    status: "active",
-    totalTasks: 18,
-    completedTasks: 16,
-    kpiScore: 81,
-  },
-  {
-    id: "E003",
-    name: "อ้อม สุวรรณ",
-    email: "om@vittaya.com",
-    position: "พนักงานตรวจสอบ",
-    role: "employee",
-    status: "inactive",
-    totalTasks: 12,
-    completedTasks: 9,
-    kpiScore: 72,
-  },
-];
 
 const emptyForm = {
   name: "",
@@ -61,15 +27,39 @@ const emptyForm = {
 
 export default function EmployeesPage() {
   const router = useRouter();
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, email, full_name, position, role, created_at")
+      .eq("role", "employee")
+      .then(({ data }) => {
+        if (data) {
+          setEmployees(
+            data.map((p) => ({
+              id: p.id,
+              name: p.full_name || p.email,
+              email: p.email,
+              position: p.position || "",
+              role: p.role as "admin" | "employee",
+              status: "active" as const,
+              totalTasks: 0,
+              completedTasks: 0,
+              kpiScore: 0,
+            }))
+          );
+        }
+      });
+  }, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [showAddInfo, setShowAddInfo] = useState(false);
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("mockUser");
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("vittaya_current_user");
     router.push("/login");
   };
 
@@ -97,23 +87,24 @@ export default function EmployeesPage() {
     setForm(emptyForm);
   };
 
-  const handleSave = (event: FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (editId) {
-      setEmployees((current) =>
-        current.map((employee) =>
-          employee.id === editId
-            ? {
-                ...employee,
-                name: form.name,
-                email: form.email,
-                position: form.position,
-                role: form.role,
-              }
-            : employee,
-        ),
-      );
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: form.name, position: form.position, role: form.role })
+        .eq("id", editId);
+
+      if (!error) {
+        setEmployees((current) =>
+          current.map((employee) =>
+            employee.id === editId
+              ? { ...employee, name: form.name, position: form.position, role: form.role }
+              : employee,
+          ),
+        );
+      }
     } else {
       const newEmployee: Employee = {
         id: `E${Date.now()}`,
@@ -171,7 +162,7 @@ export default function EmployeesPage() {
             </div>
             <button
               type="button"
-              onClick={openAddModal}
+              onClick={() => setShowAddInfo(true)}
               className="inline-flex items-center justify-center rounded-2xl bg-sky-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-sky-700"
             >
               เพิ่มพนักงาน
@@ -196,7 +187,7 @@ export default function EmployeesPage() {
                       {employee.status === "active" ? "ใช้งาน" : "ปิดใช้งาน"}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-zinc-600">{employee.position}</p>
+                  <p className="mt-1 text-sm text-zinc-600">{employee.position || "ยังไม่ระบุตำแหน่ง"}</p>
                   <p className="mt-1 text-sm text-zinc-500">{employee.email}</p>
                   <p className="mt-1 text-sm text-zinc-500">บทบาท: {employee.role === "admin" ? "ผู้ดูแลระบบ" : "พนักงาน"}</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -292,34 +283,19 @@ export default function EmployeesPage() {
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="role" className="block text-sm font-medium text-zinc-700">
-                    บทบาท
-                  </label>
-                  <select
-                    id="role"
-                    value={form.role}
-                    onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value as "admin" | "employee" }))}
-                    className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
-                  >
-                    <option value="employee">พนักงาน</option>
-                    <option value="admin">ผู้ดูแลระบบ</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
-                    รหัสผ่านชั่วคราว
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    value={form.password}
-                    onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                    className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
-                  />
-                </div>
+              <div>
+                <label htmlFor="role" className="block text-sm font-medium text-zinc-700">
+                  บทบาท
+                </label>
+                <select
+                  id="role"
+                  value={form.role}
+                  onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value as "admin" | "employee" }))}
+                  className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                >
+                  <option value="employee">พนักงาน</option>
+                  <option value="admin">ผู้ดูแลระบบ</option>
+                </select>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -341,6 +317,24 @@ export default function EmployeesPage() {
           </div>
         </div>
       ) : null}
+      {showAddInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-xs rounded-3xl bg-white p-6 shadow-2xl text-center">
+            <h2 className="text-base font-semibold text-zinc-950">เพิ่มพนักงานใหม่</h2>
+            <p className="mt-3 text-sm text-zinc-600">
+              ตอนนี้การสร้างพนักงานใหม่ทำผ่าน<br />
+              <span className="font-medium text-zinc-800">Supabase Authentication → Users</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowAddInfo(false)}
+              className="mt-5 w-full rounded-2xl bg-sky-600 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mt-6 flex justify-center">
         <button
           type="button"
