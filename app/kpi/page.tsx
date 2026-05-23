@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { taskScore, calculateKpiScore } from "@/lib/kpiUtils";
 
 type EmployeeKPI = {
   name: string;
@@ -11,11 +12,10 @@ type EmployeeKPI = {
   onTimeTasks: number;
   completedTasks: number;
   lateTasks: number;
-  overdueTasks: number;
   inProgressTasks: number;
   pendingApprovalTasks: number;
   rejectedTasks: number;
-  completionRate: number;
+  kpiScore: number;
 };
 
 type StoredTask = {
@@ -23,21 +23,10 @@ type StoredTask = {
   status: string;
   assigned_to: string | null;
   due_date: string | null;
+  task_submissions: { created_at: string }[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assignee: any;
 };
-
-function calcKPI(emp: EmployeeKPI) {
-  const t = emp.totalTasks;
-  if (t === 0) return 0;
-  const score =
-    (emp.onTimeTasks / t) * 70 +
-    (emp.completedTasks / t) * 20 -
-    (emp.lateTasks / t) * 10 -
-    (emp.overdueTasks / t) * 10;
-  // clamp 0-100
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
 
 function levelAndColor(score: number) {
   if (score >= 90) return { level: "ดีมาก", color: "bg-emerald-100 text-emerald-900" };
@@ -60,10 +49,22 @@ export default function KpiPage() {
   useEffect(() => {
     supabase
       .from("tasks")
-      .select("id, status, assigned_to, due_date, assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
+      .select("id, status, assigned_to, due_date, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
       .not("assigned_to", "is", null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .then(({ data }) => { if (data) setTaskList(data as any); });
+      .then(({ data }) => {
+        if (data) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setTaskList((data as any[]).map((t: any) => ({
+            id: t.id,
+            status: t.status,
+            assigned_to: t.assigned_to ?? null,
+            due_date: t.due_date ?? null,
+            task_submissions: Array.isArray(t.task_submissions) ? t.task_submissions : [],
+            assignee: t.assignee ?? null,
+          })));
+        }
+      });
   }, []);
 
   const employees = (() => {
@@ -82,19 +83,20 @@ export default function KpiPage() {
       const inProgress = tasks.filter((t) => t.status === "in_progress").length;
       const pendingApproval = tasks.filter((t) => t.status === "pending_approval").length;
       const rejected = tasks.filter((t) => t.status === "rejected").length;
-      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const kpiScore = calculateKpiScore(tasks);
+      const onTimeTasks = tasks.filter((t) => taskScore(t) === 100).length;
+      const lateTasks = tasks.filter((t) => { const s = taskScore(t); return s < 100 && s > 0; }).length;
       const assignee = tasks[0]?.assignee;
       return {
         name: assignee?.full_name || assignee?.email || "ไม่ระบุชื่อ",
         totalTasks: total,
-        onTimeTasks: 0,
+        onTimeTasks,
         completedTasks: completed,
-        lateTasks: 0,
-        overdueTasks: 0,
+        lateTasks,
         inProgressTasks: inProgress,
         pendingApprovalTasks: pendingApproval,
         rejectedTasks: rejected,
-        completionRate,
+        kpiScore,
       };
     });
   })();
@@ -111,8 +113,9 @@ export default function KpiPage() {
     { total: 0, completed: 0, inProgress: 0, pendingApproval: 0, rejected: 0 },
   );
 
-  const handleLogout = () => {
-    if (typeof window !== "undefined") window.localStorage.removeItem("mockUser");
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("vittaya_current_user");
     router.push("/login");
   };
 
@@ -167,12 +170,10 @@ export default function KpiPage() {
           </div>
         </div>
 
-        {/* Logout will be rendered after the employee list */}
-
         <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200">
           <div className="space-y-3">
             {employees.map((e) => {
-              const lvl = levelAndColor(e.completionRate);
+              const lvl = levelAndColor(e.kpiScore);
               return (
                 <div key={e.name} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -182,12 +183,32 @@ export default function KpiPage() {
                       <p className="text-xs text-zinc-600">
                         สำเร็จ: {e.completedTasks} • กำลังทำ: {e.inProgressTasks} • รออนุมัติ: {e.pendingApprovalTasks} • ไม่ผ่าน: {e.rejectedTasks}
                       </p>
+                      <p className="text-xs text-zinc-600">
+                        ตรงเวลา: {e.onTimeTasks} • ส่งช้า: {e.lateTasks}
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {e.kpiScore >= 90 && (
+                          <p className="text-xs text-emerald-700">คะแนนสูงเพราะทำงานสำเร็จและส่งตรงเวลาส่วนใหญ่</p>
+                        )}
+                        {e.lateTasks > 0 && (
+                          <p className="text-xs text-orange-700">คะแนนลดลงเพราะมีงานส่งช้า {e.lateTasks} งาน</p>
+                        )}
+                        {e.rejectedTasks > 0 && (
+                          <p className="text-xs text-rose-700">มีงานไม่ผ่าน {e.rejectedTasks} งาน ควรตรวจรายละเอียดก่อนส่ง</p>
+                        )}
+                        {e.inProgressTasks > 0 && (
+                          <p className="text-xs text-sky-700">มีงานกำลังทำ {e.inProgressTasks} งาน ควรติดตามให้เสร็จตามกำหนด</p>
+                        )}
+                        {e.pendingApprovalTasks > 0 && (
+                          <p className="text-xs text-amber-700">มีงานรออนุมัติ {e.pendingApprovalTasks} งาน</p>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-emerald-600">{e.completionRate}%</p>
-                        <p className="text-xs text-zinc-600">completion rate</p>
+                        <p className="text-sm font-semibold text-emerald-600">{e.kpiScore}%</p>
+                        <p className="text-xs text-zinc-600">KPI score</p>
                       </div>
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${lvl.color}`}>{lvl.level}</span>
                     </div>

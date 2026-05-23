@@ -220,12 +220,18 @@ export default function EmployeePage() {
 
     if (error) return;
 
-    await supabase.from("task_submissions").insert({
+    const { error: submissionError } = await supabase.from("task_submissions").insert({
       task_id: selectedTask.id,
       submitted_by: currentUser.id,
       description: submissionNote.trim() || null,
       image_urls: imageUrls,
     });
+
+    if (submissionError) {
+      alert(submissionError.message);
+      console.error(submissionError);
+      return;
+    }
 
     setTasks((current) =>
       current.map((task) =>
@@ -280,7 +286,7 @@ export default function EmployeePage() {
                 ดูงานของคุณ แยกตามสถานะ และส่งงานหรือแก้ไขงานใหม่ได้ที่นี่
               </p>
             </div>
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => router.push("/employee/calendar")}
@@ -290,6 +296,16 @@ export default function EmployeePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 ดูปฏิทินงาน
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/employee/kpi")}
+                className="inline-flex items-center gap-1.5 rounded-2xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 ring-1 ring-sky-200 transition hover:bg-sky-100"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                ดู KPI
               </button>
             </div>
           </div>
