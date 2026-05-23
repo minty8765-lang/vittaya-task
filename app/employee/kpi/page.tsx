@@ -121,41 +121,41 @@ export default function EmployeeKpiPage() {
                 />
               </div>
               <p className={`mt-1.5 text-xs font-semibold ${kpiScore >= 80 ? "text-emerald-600" : kpiScore >= 50 ? "text-sky-600" : "text-orange-500"}`}>
-                {kpiScore >= 80 ? "ยอดเยี่ยม! ผลงานดีมาก" : kpiScore >= 50 ? "ดี ยังมีงานที่ต้องทำต่อ" : "ยังมีงานค้างอีกมาก สู้ๆ"}
+                {kpiScore >= 90 ? "ยอดเยี่ยม! ผลงานดีมาก" : kpiScore >= 75 ? "ผลงานโดยรวมดี แต่ยังมีงานส่งล่าช้า" : kpiScore >= 60 ? "ควรวางแผนเวลาให้ดีขึ้น" : kpiScore >= 40 ? "มีงานล่าช้าหลายงาน ควรเร่งปรับปรุง" : "ยังมีงานค้างอีกมาก สู้ๆ"}
               </p>
             </div>
 
             {/* คำแนะนำ */}
             <div className="rounded-[1.75rem] bg-white p-5 shadow-lg ring-1 ring-zinc-200 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-zinc-500">คำแนะนำ</p>
-              {total === 0 && (
+              {total === 0 ? (
                 <div className="rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
                   <p className="text-sm text-zinc-600">ยังไม่มีงานในระบบ</p>
                 </div>
-              )}
-              {rejected > 0 && (
+              ) : kpiScore >= 90 ? (
+                <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">
+                  <p className="text-sm text-emerald-700">ทำได้ดีมาก รักษามาตรฐานนี้ต่อไป</p>
+                </div>
+              ) : kpiScore >= 75 ? (
+                <div className="rounded-2xl bg-sky-50 px-4 py-3 ring-1 ring-sky-100">
+                  <p className="text-sm text-sky-700">ผลงานโดยรวมดี แต่ควรลดงานส่งล่าช้า</p>
+                </div>
+              ) : kpiScore >= 60 ? (
+                <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">
+                  <p className="text-sm text-amber-700">ควรวางแผนงานล่วงหน้า และจัดลำดับงานใกล้ครบกำหนดก่อน</p>
+                </div>
+              ) : kpiScore >= 40 ? (
+                <div className="rounded-2xl bg-orange-50 px-4 py-3 ring-1 ring-orange-100">
+                  <p className="text-sm text-orange-700">ควรเร่งเคลียร์งานค้าง และตรวจสอบกำหนดส่งทุกวัน</p>
+                </div>
+              ) : (
                 <div className="rounded-2xl bg-rose-50 px-4 py-3 ring-1 ring-rose-100">
-                  <p className="text-sm text-rose-700">มีงานที่ไม่ผ่าน แนะนำให้ตรวจรายละเอียดและรูปภาพก่อนส่งงาน</p>
+                  <p className="text-sm text-rose-700">ควรปรับปรุงการส่งงานอย่างเร่งด่วน และขอคำแนะนำจากหัวหน้างาน</p>
                 </div>
               )}
               {late > 0 && (
                 <div className="rounded-2xl bg-orange-50 px-4 py-3 ring-1 ring-orange-100">
-                  <p className="text-sm text-orange-700">มีงานส่งช้า {late} ชิ้น (ช้าสูงสุด {maxLateDays} วัน) แนะนำให้วางแผนงานล่วงหน้า</p>
-                </div>
-              )}
-              {inProgress > 3 && (
-                <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-100">
-                  <p className="text-sm text-amber-700">มีงานกำลังทำหลายงาน แนะนำให้จัดลำดับงานที่ใกล้ถึงกำหนดก่อน</p>
-                </div>
-              )}
-              {pendingApproval > 0 && (
-                <div className="rounded-2xl bg-sky-50 px-4 py-3 ring-1 ring-sky-100">
-                  <p className="text-sm text-sky-700">มีงานรออนุมัติ รอผู้ดูแลตรวจสอบ</p>
-                </div>
-              )}
-              {kpiScore >= 80 && (
-                <div className="rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-100">
-                  <p className="text-sm text-emerald-700">ทำได้ดีมาก รักษามาตรฐานนี้ต่อไป</p>
+                  <p className="text-sm text-orange-700">มีงานส่งช้า {late} ชิ้น ควรส่งก่อนกำหนดเพื่อลดความเสี่ยง</p>
                 </div>
               )}
             </div>
