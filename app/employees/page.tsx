@@ -96,15 +96,17 @@ export default function EmployeesPage() {
         .update({ full_name: form.name, position: form.position, role: form.role })
         .eq("id", editId);
 
-      if (!error) {
-        setEmployees((current) =>
-          current.map((employee) =>
-            employee.id === editId
-              ? { ...employee, name: form.name, position: form.position, role: form.role }
-              : employee,
-          ),
-        );
+      if (error) {
+        alert(error.message);
+        return;
       }
+      setEmployees((current) =>
+        current.map((employee) =>
+          employee.id === editId
+            ? { ...employee, name: form.name, position: form.position, role: form.role }
+            : employee,
+        ),
+      );
     } else {
       const newEmployee: Employee = {
         id: `E${Date.now()}`,
