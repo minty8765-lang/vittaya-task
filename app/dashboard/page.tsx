@@ -108,16 +108,27 @@ export default function DashboardPage() {
           status,
           reject_reason,
           assignee:profiles!tasks_assigned_to_fkey(full_name, email),
-          submissions:task_submissions(description, image_urls, created_at)
+          task_submissions (
+            description,
+            image_urls,
+            created_at
+          )
         `)
         .order("created_at", { ascending: false });
 
       if (!data) return;
 
+      const taskIds = data.map((t: any) => t.id);
+      const { data: submissions } = await supabase
+        .from("task_submissions")
+        .select("task_id, description, image_urls, created_at")
+        .in("task_id", taskIds)
+        .order("created_at", { ascending: false });
+
       setTaskList(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data.map((t: any) => {
-          const sub = t.submissions?.[0] ?? null;
+          const sub = submissions?.find((s: any) => s.task_id === t.id) ?? null;
           return {
             id: t.id,
             task_code: t.task_code ?? undefined,
