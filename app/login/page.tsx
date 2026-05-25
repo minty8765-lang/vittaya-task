@@ -24,16 +24,11 @@ export default function LoginPage() {
       return;
     }
 
-    console.log("[login] auth user email:", data.user.email);
-
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from("profiles")
       .select("id, full_name, role")
       .eq("email", data.user.email)
       .single();
-
-    console.log("[login] profile:", profile);
-    console.log("[login] profileError:", profileError);
 
     if (!profile) {
       setError("ไม่พบข้อมูลผู้ใช้ในระบบ");
@@ -79,7 +74,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="admin@vittaya.com"
+              placeholder="กรอกอีเมลของคุณ"
               className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
             />
           </div>
@@ -94,7 +89,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="123456"
+              placeholder="กรอกรหัสผ่านของคุณ"
               className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
             />
           </div>
@@ -110,19 +105,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-8 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-600">
-          <p className="text-sm font-semibold text-zinc-900">บัญชีทดลอง</p>
-          <div className="mt-3 space-y-3">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <p className="text-sm font-medium text-zinc-900">Admin</p>
-              <p className="text-sm text-zinc-600">admin@vittaya.com / 123456</p>
-            </div>
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <p className="text-sm font-medium text-zinc-900">Employee</p>
-              <p className="text-sm text-zinc-600">employee@vittaya.com / 123456</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
