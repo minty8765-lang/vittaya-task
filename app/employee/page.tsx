@@ -23,6 +23,16 @@ type Task = {
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
 
+function getPriorityFromDueDate(dueDate: string | null | undefined): string {
+  if (!dueDate) return "ไม่เร่งด่วน";
+  const diff = new Date(dueDate + "T23:59:59").getTime() - Date.now();
+  if (diff < 0) return "ด่วน";
+  const days = diff / MS_PER_DAY;
+  if (days <= 2) return "ด่วน";
+  if (days <= 7) return "ปานกลาง";
+  return "ไม่เร่งด่วน";
+}
+
 function getTimeStatus(dueDate: string, submittedAt: string | undefined, status: TaskStatus) {
   const due = new Date(dueDate + "T23:59:59").getTime();
   const now = Date.now();
@@ -124,7 +134,7 @@ export default function EmployeePage() {
           description: t.description || "",
           assigner: "Admin",
           dueDate: t.due_date || "",
-          priority: "ปานกลาง",
+          priority: getPriorityFromDueDate(t.due_date),
           status: (t.status || "in_progress") as TaskStatus,
           rejectReason: t.reject_reason ?? undefined,
         })));
@@ -138,7 +148,7 @@ export default function EmployeePage() {
           title: t.title,
           description: t.description || "",
           dueDate: t.due_date || "",
-          priority: "ปานกลาง",
+          priority: getPriorityFromDueDate(t.due_date),
         })));
       }
     }
