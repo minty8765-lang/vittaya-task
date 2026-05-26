@@ -130,7 +130,7 @@ export default function NewTaskPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-red-500">{submitError}</div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href="/tasks" className="rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
+              <Link href="/dashboard" className="rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
                 ยกเลิก
               </Link>
               <button type="button" onClick={handleSubmit} disabled={isSubmitting} className="rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">
