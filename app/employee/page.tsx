@@ -127,6 +127,33 @@ export default function EmployeePage() {
   useEffect(() => {
     if (!currentUser) return;
 
+    const channel = supabase
+      .channel(`notifications-${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          setUnreadCount((c) => c + 1);
+          setNotifications((prev) =>
+            prev.length > 0
+              ? [payload.new as { id: string; task_id: string | null; message: string; created_at: string; is_read: boolean }, ...prev]
+              : prev
+          );
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
     async function loadTasks() {
       const [{ data }, { data: openData }] = await Promise.all([
         supabase
