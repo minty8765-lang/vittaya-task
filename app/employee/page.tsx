@@ -180,6 +180,55 @@ export default function EmployeePage() {
           status: (t.status || "in_progress") as TaskStatus,
           rejectReason: t.reject_reason ?? undefined,
         })));
+
+        // เช็กงานใกล้ครบกำหนด
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dueTasks = data.filter((t: any) => t.status === "in_progress" && t.due_date);
+        for (const t of dueTasks) {
+          const due = new Date(t.due_date); due.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+          let type: string;
+          let message: string;
+          if (diffDays < 0) {
+            type = "overdue";
+            message = `งาน ${t.title} เกินกำหนดแล้ว`;
+          } else if (diffDays === 0) {
+            type = "due_today";
+            message = `งาน ${t.title} ครบกำหนดวันนี้`;
+          } else if (diffDays <= 3) {
+            type = "due_soon";
+            message = `งาน ${t.title} ใกล้ครบกำหนดใน ${diffDays} วัน`;
+          } else {
+            continue;
+          }
+
+          const { data: existing } = await supabase
+            .from("notifications")
+            .select("id")
+            .eq("user_id", currentUser!.id)
+            .eq("task_id", t.id)
+            .eq("type", type)
+            .limit(1);
+
+          if (existing && existing.length > 0) continue;
+
+          const { data: inserted, error: notifError } = await supabase.from("notifications").insert({
+            user_id: currentUser!.id,
+            task_id: t.id,
+            type,
+            message,
+          }).select("id, task_id, message, created_at, is_read").single();
+          if (notifError) {
+            console.error("due notification failed:", notifError.message);
+          } else if (inserted) {
+            setUnreadCount((c) => c + 1);
+            setNotifications((prev) =>
+              prev.length > 0 ? [inserted, ...prev] : prev
+            );
+          }
+        }
       }
 
       if (openData) {
