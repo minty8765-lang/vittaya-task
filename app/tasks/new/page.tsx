@@ -58,20 +58,30 @@ export default function NewTaskPage() {
       return;
     }
 
-    const { error } = await supabase.from("tasks").insert({
+    const { data: insertedTasks, error } = await supabase.from("tasks").insert({
       title,
       description,
       due_date: dueDate || null,
       created_by: user.id,
       assigned_to: assigneeId,
       status,
-    });
+    }).select("id");
 
     setIsSubmitting(false);
 
     if (error) {
       setSubmitError(error.message);
       return;
+    }
+
+    if (assigneeId && insertedTasks?.[0]?.id) {
+      const { error: notifError } = await supabase.from("notifications").insert({
+        user_id: assigneeId,
+        task_id: insertedTasks[0].id,
+        type: "new_task",
+        message: `คุณได้รับงานใหม่: ${title}`,
+      });
+      if (notifError) console.error("notification insert failed:", notifError.message);
     }
 
     setShowModal(true);

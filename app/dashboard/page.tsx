@@ -162,6 +162,17 @@ export default function DashboardPage() {
       return;
     }
     setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, status: "completed" as TaskStatus } : t)));
+
+    const task = taskList.find((t) => t.id === id);
+    if (task?.assignedTo) {
+      const { error: notifError } = await supabase.from("notifications").insert({
+        user_id: task.assignedTo,
+        task_id: id,
+        type: "completed",
+        message: `งาน ${task.title} ได้รับการอนุมัติแล้ว`,
+      });
+      if (notifError) console.error(notifError);
+    }
   }
 
   function handleReject(id: string) {
@@ -188,6 +199,18 @@ export default function DashboardPage() {
         t.id === rejectTargetId ? { ...t, status: "rejected" as TaskStatus, rejectReason: rejectReasonInput } : t
       )
     );
+
+    const task = taskList.find((t) => t.id === rejectTargetId);
+    if (task?.assignedTo) {
+      const { error: notifError } = await supabase.from("notifications").insert({
+        user_id: task.assignedTo,
+        task_id: rejectTargetId,
+        type: "rejected",
+        message: `งาน ${task.title} ไม่ผ่าน: ${rejectReasonInput}`,
+      });
+      if (notifError) console.error(notifError);
+    }
+
     setRejectTargetId(null);
     setRejectReasonInput("");
   }
