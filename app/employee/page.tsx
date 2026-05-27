@@ -101,7 +101,7 @@ export default function EmployeePage() {
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<{ id: string; message: string; created_at: string; is_read: boolean }[]>([]);
+  const [notifications, setNotifications] = useState<{ id: string; task_id: string | null; message: string; created_at: string; is_read: boolean }[]>([]);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const router = useRouter();
 
@@ -299,7 +299,7 @@ export default function EmployeePage() {
 
     const { data } = await supabase
       .from("notifications")
-      .select("id, message, created_at, is_read")
+      .select("id, task_id, message, created_at, is_read")
       .eq("user_id", currentUser.id)
       .order("created_at", { ascending: false });
 
@@ -312,6 +312,18 @@ export default function EmployeePage() {
       .update({ is_read: true })
       .eq("user_id", currentUser.id)
       .eq("is_read", false);
+  }
+
+  function handleNotificationClick(taskId: string | null) {
+    setShowNotifications(false);
+    setShowAllNotifications(false);
+    if (!taskId) return;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    setActiveTab(task.status);
+    setTimeout(() => {
+      document.getElementById(`task-${taskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
   }
 
   const handleLogout = async () => {
@@ -380,7 +392,11 @@ export default function EmployeePage() {
                 <>
                   <div className="max-h-[360px] overflow-y-auto space-y-2 px-3 pb-3">
                     {(showAllNotifications ? notifications : notifications.slice(0, 5)).map((n) => (
-                      <div key={n.id} className={`rounded-xl p-3 ${n.is_read ? "bg-white ring-1 ring-zinc-100" : "bg-sky-100 ring-1 ring-sky-300"}`}>
+                      <div
+                      key={n.id}
+                      onClick={() => handleNotificationClick(n.task_id)}
+                      className={`rounded-xl p-3 transition active:scale-[0.98] ${n.task_id ? "cursor-pointer" : "cursor-default"} ${n.is_read ? "bg-white ring-1 ring-zinc-100 hover:bg-zinc-50" : "bg-sky-100 ring-1 ring-sky-300 hover:bg-sky-200"}`}
+                    >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-2 min-w-0">
                             {!n.is_read && (
@@ -541,7 +557,7 @@ export default function EmployeePage() {
               </div>
             ) : (
               filteredTasks.map((task) => (
-                <div key={task.id} className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4 shadow-sm sm:p-5">
+                <div key={task.id} id={`task-${task.id}`} className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4 shadow-sm sm:p-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
