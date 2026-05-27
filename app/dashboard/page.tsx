@@ -299,6 +299,17 @@ export default function DashboardPage() {
           : t
       )
     );
+
+    if (editAssignedTo) {
+      const { error: notifError } = await supabase.from("notifications").insert({
+        user_id: editAssignedTo,
+        task_id: editTargetId,
+        type: "task_updated",
+        message: `งาน ${editTitle} มีการแก้ไข กรุณาตรวจสอบรายละเอียดอีกครั้ง`,
+      });
+      if (notifError) console.error("task_updated notification failed:", notifError.message);
+    }
+
     setEditTargetId(null);
   }
 
