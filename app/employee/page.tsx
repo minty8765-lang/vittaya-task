@@ -102,6 +102,7 @@ export default function EmployeePage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; message: string; created_at: string; is_read: boolean }[]>([]);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -293,7 +294,7 @@ export default function EmployeePage() {
   };
 
   async function handleToggleNotifications() {
-    if (showNotifications) { setShowNotifications(false); return; }
+    if (showNotifications) { setShowNotifications(false); setShowAllNotifications(false); return; }
     if (!currentUser) return;
 
     const { data } = await supabase
@@ -376,34 +377,42 @@ export default function EmployeePage() {
               {notifications.length === 0 ? (
                 <p className="px-4 pb-4 text-sm text-zinc-500">ไม่มีการแจ้งเตือน</p>
               ) : (
-                <div className="space-y-2 px-3 pb-3">
-                  {notifications.map((n) => (
-                    <div key={n.id} className={`rounded-xl p-3 ${n.is_read ? "bg-white ring-1 ring-zinc-100" : "bg-sky-50 ring-1 ring-sky-200"}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm text-zinc-900 leading-relaxed">{n.message}</p>
-                        {!n.is_read && (
-                          <span className="shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">ใหม่</span>
-                        )}
+                <>
+                  <div className="max-h-[360px] overflow-y-auto space-y-2 px-3 pb-3">
+                    {(showAllNotifications ? notifications : notifications.slice(0, 5)).map((n) => (
+                      <div key={n.id} className={`rounded-xl p-3 ${n.is_read ? "bg-white ring-1 ring-zinc-100" : "bg-sky-100 ring-1 ring-sky-300"}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2 min-w-0">
+                            {!n.is_read && (
+                              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-500" />
+                            )}
+                            <p className={`text-sm leading-relaxed ${n.is_read ? "font-normal text-zinc-600" : "font-semibold text-zinc-900"}`}>
+                              {n.message}
+                            </p>
+                          </div>
+                          {!n.is_read && (
+                            <span className="shrink-0 rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-white">ใหม่</span>
+                          )}
+                        </div>
+                        <p className={`mt-1 text-xs ${n.is_read ? "text-zinc-400" : "text-sky-700 font-medium"}`}>
+                          {new Date(n.created_at).toLocaleString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </p>
                       </div>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        {new Date(n.created_at).toLocaleString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  {notifications.length > 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllNotifications((v) => !v)}
+                      className="w-full py-2.5 text-xs font-semibold text-sky-600 hover:bg-zinc-100 transition border-t border-zinc-200"
+                    >
+                      {showAllNotifications ? "แสดงน้อยลง" : `ดูทั้งหมด (${notifications.length})`}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
-
-          {(() => {
-            const count = tasks.filter((t) => t.status === "rejected").length;
-            if (count === 0) return null;
-            return (
-              <div className="mb-5 rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
-                <p className="text-sm font-semibold text-red-800">มีงานถูกตีกลับ {count} งาน</p>
-              </div>
-            );
-          })()}
 
           {(() => {
             const total = tasks.length;
