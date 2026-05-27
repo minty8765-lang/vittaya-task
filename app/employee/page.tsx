@@ -220,6 +220,19 @@ export default function EmployeePage() {
     }
   };
 
+  async function notifyAdmins(taskId: string, type: string, message: string) {
+    const { data: admins } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("role", "admin");
+    console.log("[ADMINS]", admins);
+    if (!admins?.length) return;
+    const { error } = await supabase.from("notifications").insert(
+      admins.map((a: { id: string }) => ({ user_id: a.id, task_id: taskId, type, message }))
+    );
+    if (error) console.error("notifyAdmins failed:", error.message);
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedTask || !currentUser) return;
@@ -264,6 +277,14 @@ export default function EmployeePage() {
       ),
     );
 
+    const employeeName = currentUser.name;
+    if (selectedTask.status === "rejected") {
+      notifyAdmins(selectedTask.id, "resubmit", `${employeeName} แก้ไขและส่งงานใหม่: ${selectedTask.title}`);
+    } else {
+      notifyAdmins(selectedTask.id, "pending_approval", `${employeeName} ส่งงานรออนุมัติ: ${selectedTask.title}`);
+    }
+    console.log("[NOTIFY ADMIN TRIGGERED]");
+
     setSuccessMessage("ส่งงานเรียบร้อยแล้ว");
     closeModal();
   };
@@ -289,6 +310,10 @@ export default function EmployeePage() {
         status: "in_progress" as TaskStatus,
       },
     ]);
+
+    notifyAdmins(task.id, "task_accepted", `${currentUser!.name} รับงานแล้ว: ${task.title}`);
+    console.log("[NOTIFY ADMIN TRIGGERED]");
+
     setAcceptMessage("รับงานเรียบร้อยแล้ว");
     setTimeout(() => setAcceptMessage(""), 3000);
   };

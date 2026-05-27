@@ -75,12 +75,28 @@ export default function DashboardPage() {
   const [editAssignedTo, setEditAssignedTo] = useState("");
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [adminId, setAdminId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<{ id: string; task_id: string | null; message: string; created_at: string; is_read: boolean }[]>([]);
 
   useEffect(() => {
     const raw = localStorage.getItem("vittaya_current_user");
     if (!raw) { router.push("/login"); return; }
     const user = JSON.parse(raw);
     if (user.role !== "admin") { router.push("/login"); return; }
+    setAdminId(user.id);
+    console.log("[ADMIN USER] id:", user.id, "role:", user.role);
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact" })
+      .eq("user_id", user.id)
+      .eq("is_read", false)
+      .then(({ count, error }) => {
+        console.log("[UNREAD COUNT]", count, "error:", error?.message ?? null);
+        setUnreadCount(count ?? 0);
+      });
   }, [router]);
 
   useEffect(() => {
@@ -260,6 +276,38 @@ export default function DashboardPage() {
     setDeleteTargetId(null);
   }
 
+  async function handleToggleNotifications() {
+    if (showNotifications) { setShowNotifications(false); setShowAllNotifications(false); return; }
+    console.log("[TOGGLE] adminId state:", adminId);
+    if (!adminId) { console.warn("[TOGGLE] adminId is null — aborting"); return; }
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("id, task_id, message, created_at, is_read")
+      .eq("user_id", adminId)
+      .order("created_at", { ascending: false });
+    console.log("[ADMIN NOTIFICATIONS] data:", data, "error:", error?.message ?? null);
+    if (data) setNotifications(data);
+    setShowNotifications(true);
+    setUnreadCount(0);
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", adminId)
+      .eq("is_read", false);
+  }
+
+  function handleNotificationClick(taskId: string | null) {
+    setShowNotifications(false);
+    setShowAllNotifications(false);
+    if (!taskId) return;
+    const task = taskList.find((t) => t.id === taskId);
+    if (!task) return;
+    setSelectedStatus(task.status as FilterKey);
+    setTimeout(() => {
+      document.getElementById(`task-${taskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  }
+
   const tabs: { key: FilterKey; label: string; count: number }[] = [
     { key: "all", label: "ทั้งหมด", count: taskList.length },
     { key: "open", label: "รอดำเนินการ", count: taskList.filter((t) => t.status === "open").length },
@@ -286,6 +334,21 @@ export default function DashboardPage() {
 
             <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
             <div className="flex items-center gap-2 sm:flex-nowrap">
+              <button
+                type="button"
+                onClick={handleToggleNotifications}
+                className="relative inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200"
+              >
+                <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                แจ้งเตือน
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
               <Link href="/kpi" className="inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
                 <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3v18M21 12H3" />
@@ -341,15 +404,50 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {(() => {
-          const count = taskList.filter((t) => t.status === "pending_approval").length;
-          if (count === 0) return null;
-          return (
-            <div className="rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
-              <p className="text-sm font-semibold text-amber-800">มีงานรออนุมัติ {count} งาน</p>
-            </div>
-          );
-        })()}
+        {showNotifications && (
+          <div className="rounded-2xl bg-zinc-50 ring-1 ring-zinc-200 overflow-hidden">
+            <p className="px-4 pt-3 pb-2 text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500">การแจ้งเตือน</p>
+            {notifications.length === 0 ? (
+              <p className="px-4 pb-4 text-sm text-zinc-500">ไม่มีการแจ้งเตือน</p>
+            ) : (
+              <>
+                <div className="max-h-[360px] overflow-y-auto space-y-2 px-3 pb-3">
+                  {(showAllNotifications ? notifications : notifications.slice(0, 5)).map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotificationClick(n.task_id)}
+                      className={`rounded-xl p-3 transition active:scale-[0.98] ${n.task_id ? "cursor-pointer" : "cursor-default"} ${n.is_read ? "bg-white ring-1 ring-zinc-100 hover:bg-zinc-50" : "bg-sky-100 ring-1 ring-sky-300 hover:bg-sky-200"}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          {!n.is_read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-500" />}
+                          <p className={`text-sm leading-relaxed ${n.is_read ? "font-normal text-zinc-600" : "font-semibold text-zinc-900"}`}>
+                            {n.message}
+                          </p>
+                        </div>
+                        {!n.is_read && (
+                          <span className="shrink-0 rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-bold text-white">ใหม่</span>
+                        )}
+                      </div>
+                      <p className={`mt-1 text-xs ${n.is_read ? "text-zinc-400" : "text-sky-700 font-medium"}`}>
+                        {new Date(n.created_at).toLocaleString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {notifications.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllNotifications((v) => !v)}
+                    className="w-full py-2.5 text-xs font-semibold text-sky-600 hover:bg-zinc-100 transition border-t border-zinc-200"
+                  >
+                    {showAllNotifications ? "แสดงน้อยลง" : `ดูทั้งหมด (${notifications.length})`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200">
           <div className="mb-4 flex items-center justify-between">
@@ -366,7 +464,7 @@ export default function DashboardPage() {
               const isPendingApproval = task.status === "pending_approval";
               const isRejected = task.status === "rejected";
               return (
-                <div key={task.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                <div key={task.id} id={`task-${task.id}`} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
