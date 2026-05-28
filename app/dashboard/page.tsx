@@ -175,8 +175,8 @@ export default function DashboardPage() {
       const { data: admins } = await supabase.from("profiles").select("id").eq("role", "admin");
       if (!admins?.length) return;
 
-      for (const t of dueTomorrow) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const t of dueTomorrow as any[]) {
         const assigneeName = t.assignee?.full_name || t.assignee?.email || "พนักงาน";
         for (const admin of admins) {
           const { data: existing } = await supabase
@@ -374,57 +374,59 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-zinc-100 px-4 py-6">
       <div className="mx-auto w-full max-w-md sm:max-w-lg space-y-6">
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="w-full sm:w-auto sm:min-w-0">
+          {/* แถวบน: title ซ้าย, แจ้งเตือน ขวา */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <h1 className="text-lg font-semibold text-zinc-950">ติดตามงาน</h1>
               <p className="mt-1 text-sm text-zinc-600">ภาพรวมงานและสถานะทีมของคุณ</p>
             </div>
+            <button
+              type="button"
+              onClick={handleToggleNotifications}
+              className="relative shrink-0 inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200"
+            >
+              <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              แจ้งเตือน
+              {unreadCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
 
-            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex items-center gap-2 sm:flex-nowrap">
-              <button
-                type="button"
-                onClick={handleToggleNotifications}
-                className="relative inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200"
-              >
-                <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                แจ้งเตือน
-                {unreadCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </button>
-              <Link href="/kpi" className="inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
+          {/* แถวล่าง: KPI / ปฏิทิน / พนักงาน / สร้างงาน — scroll แนวนอนบนมือถือ */}
+          <div className="-mx-4 mt-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <div className="flex items-center gap-2">
+              <Link href="/kpi" className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
                 <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3v18M21 12H3" />
                 </svg>
                 KPI
               </Link>
 
-              <Link href="/calendar" className="inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
+              <Link href="/calendar" className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
                 <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 ปฏิทิน
               </Link>
 
-              <Link href="/employees" className="inline-flex items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
+              <Link href="/employees" className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-200">
                 <svg className="h-4 w-4 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 15c2.5 0 4.847.654 6.879 1.804M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 พนักงาน
               </Link>
 
-              <Link href="/tasks/new" className="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700">
+              <Link href="/tasks/new" className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700">
                 <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 สร้างงาน
               </Link>
-            </div>
             </div>
           </div>
 
