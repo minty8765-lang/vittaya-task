@@ -5,13 +5,13 @@ export type KpiSubmission = {
 export type KpiTask = {
   status: string;
   due_date: string | null;
-  assigned_to: string | null;
-  rejection_count: number;
+  assigned_to?: string | null;
+  rejection_count?: number;
   task_submissions: KpiSubmission[];
 };
 
 export function shouldCountInKpi(task: KpiTask): boolean {
-  if (task.status === "open" && task.assigned_to === null) return false;
+  if (task.status === "open" && !task.assigned_to) return false;
   return true;
 }
 
