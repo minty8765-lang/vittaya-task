@@ -30,16 +30,12 @@ function getTimeStatus(dueDate: string, submittedAt: string | undefined, status:
   const now = Date.now();
 
   if ((status === "pending_approval" || status === "completed" || status === "rejected") && submittedAt) {
-    const submitted = new Date(submittedAt).getTime();
-    const diff = due - submitted;
-    if (diff >= 0) {
-      if (diff >= MS_PER_DAY) return { text: `ส่งก่อนกำหนด ${Math.floor(diff / MS_PER_DAY)} วัน`, color: "bg-emerald-100 text-emerald-900" };
-      if (diff >= MS_PER_HOUR) return { text: `ส่งก่อนกำหนด ${Math.floor(diff / MS_PER_HOUR)} ชม.`, color: "bg-emerald-100 text-emerald-900" };
-      return { text: "ส่งทันเวลา", color: "bg-emerald-100 text-emerald-900" };
-    }
-    const late = submitted - due;
-    if (late >= MS_PER_DAY) return { text: `ส่งช้า ${Math.ceil(late / MS_PER_DAY)} วัน`, color: "bg-amber-100 text-amber-900" };
-    return { text: `ส่งช้า ${Math.ceil(late / MS_PER_HOUR)} ชม.`, color: "bg-amber-100 text-amber-900" };
+    const dueDay = new Date(dueDate); dueDay.setHours(0, 0, 0, 0);
+    const subDay = new Date(submittedAt); subDay.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((subDay.getTime() - dueDay.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return { text: `ส่งก่อนกำหนด ${Math.abs(diffDays)} วัน`, color: "bg-emerald-100 text-emerald-900" };
+    if (diffDays === 0) return { text: "ส่งตรงเวลา", color: "bg-emerald-100 text-emerald-900" };
+    return { text: `ส่งช้า ${diffDays} วัน`, color: "bg-amber-100 text-amber-900" };
   }
 
   const diff = due - now;

@@ -50,7 +50,7 @@ export function taskScore(task: KpiTask): number {
   } else if (task.status === "pending_approval") {
     timingScore = 100;
   } else if (task.status === "rejected") {
-    timingScore = 80;
+    timingScore = 100;
   } else {
     // open (with assigned_to) or any other status
     timingScore = 100;

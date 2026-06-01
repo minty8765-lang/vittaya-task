@@ -14,6 +14,7 @@ type Task = {
   title: string;
   status: string;
   due_date: string | null;
+  rejection_count: number;
   task_submissions: Submission[];
 };
 
@@ -34,7 +35,7 @@ export default function EmployeeKpiPage() {
 
       supabase
         .from("tasks")
-        .select("id, title, status, due_date, task_submissions(created_at)")
+        .select("id, title, status, due_date, rejection_count, task_submissions(created_at)")
         .eq("assigned_to", authUser.id)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then(({ data, error }) => {
@@ -45,6 +46,7 @@ export default function EmployeeKpiPage() {
             title: t.title,
             status: t.status,
             due_date: t.due_date ?? null,
+            rejection_count: t.rejection_count ?? 0,
             task_submissions: Array.isArray(t.task_submissions) ? t.task_submissions : [],
           }));
           setTasks(mapped);

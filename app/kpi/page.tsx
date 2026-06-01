@@ -23,6 +23,7 @@ type StoredTask = {
   status: string;
   assigned_to: string | null;
   due_date: string | null;
+  rejection_count: number;
   task_submissions: { created_at: string }[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assignee: any;
@@ -49,7 +50,7 @@ export default function KpiPage() {
   useEffect(() => {
     supabase
       .from("tasks")
-      .select("id, status, assigned_to, due_date, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
+      .select("id, status, assigned_to, due_date, rejection_count, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
       .not("assigned_to", "is", null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }) => {
@@ -60,6 +61,7 @@ export default function KpiPage() {
             status: t.status,
             assigned_to: t.assigned_to ?? null,
             due_date: t.due_date ?? null,
+            rejection_count: t.rejection_count ?? 0,
             task_submissions: Array.isArray(t.task_submissions) ? t.task_submissions : [],
             assignee: t.assignee ?? null,
           })));
@@ -84,8 +86,8 @@ export default function KpiPage() {
       const pendingApproval = tasks.filter((t) => t.status === "pending_approval").length;
       const rejected = tasks.filter((t) => t.status === "rejected").length;
       const kpiScore = calculateKpiScore(tasks);
-      const onTimeTasks = tasks.filter((t) => taskScore(t) === 100).length;
-      const lateTasks = tasks.filter((t) => { const s = taskScore(t); return s < 100 && s > 0; }).length;
+      const onTimeTasks = tasks.filter((t) => t.status === "completed" && taskScore(t) === 100).length;
+      const lateTasks = completed - onTimeTasks;
       const assignee = tasks[0]?.assignee;
       return {
         name: assignee?.full_name || assignee?.email || "ไม่ระบุชื่อ",
