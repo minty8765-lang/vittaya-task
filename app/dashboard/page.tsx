@@ -26,7 +26,7 @@ const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
 
 function getTimeStatus(dueDate: string, submittedAt: string | undefined, status: TaskStatus) {
-  const due = new Date(dueDate).getTime();
+  const due = new Date(dueDate + "T23:59:59").getTime();
   const now = Date.now();
 
   if ((status === "pending_approval" || status === "completed" || status === "rejected") && submittedAt) {
