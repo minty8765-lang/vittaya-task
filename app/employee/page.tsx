@@ -17,8 +17,17 @@ type Task = {
   status: TaskStatus;
   submittedAt?: string;
   rejectReason?: string;
+  createdAt?: string;
 };
 
+
+function formatThaiDate(iso: string) {
+  const d = new Date(iso);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear() + 543;
+  return `${day}/${month}/${year}`;
+}
 
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
@@ -154,11 +163,11 @@ export default function EmployeePage() {
       const [{ data }, { data: openData }] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, task_code, title, description, due_date, status, reject_reason")
+          .select("id, task_code, title, description, due_date, status, reject_reason, created_at")
           .eq("assigned_to", currentUser!.id),
         supabase
           .from("tasks")
-          .select("id, task_code, title, description, due_date")
+          .select("id, task_code, title, description, due_date, created_at")
           .eq("status", "open")
           .is("assigned_to", null),
       ]);
@@ -175,6 +184,7 @@ export default function EmployeePage() {
           priority: getPriorityFromDueDate(t.due_date),
           status: (t.status || "in_progress") as TaskStatus,
           rejectReason: t.reject_reason ?? undefined,
+          createdAt: t.created_at ?? undefined,
         })));
 
         // เช็กงานใกล้ครบกำหนด
@@ -678,6 +688,11 @@ export default function EmployeePage() {
                         <p className="text-sm text-zinc-600">
                           Due date: <span className="font-semibold text-zinc-900">{task.dueDate || "ไม่มีกำหนด"}</span>
                         </p>
+                        {task.createdAt && (
+                          <p className="text-sm text-zinc-600">
+                            สั่งงาน: <span className="font-semibold text-zinc-900">{formatThaiDate(task.createdAt)}</span>
+                          </p>
+                        )}
                       </div>
                       {task.dueDate && (() => {
                         const ts = getTimeStatus(task.dueDate, task.submittedAt, task.status);

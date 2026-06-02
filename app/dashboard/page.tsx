@@ -20,7 +20,16 @@ type TaskItem = {
   submissionNote?: string;
   submissionImages?: string[];
   rejectReason?: string;
+  createdAt?: string;
 };
+
+function formatThaiDate(iso: string) {
+  const d = new Date(iso);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear() + 543;
+  return `${day}/${month}/${year}`;
+}
 
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
@@ -119,6 +128,7 @@ export default function DashboardPage() {
           due_date,
           status,
           reject_reason,
+          created_at,
           assignee:profiles!tasks_assigned_to_fkey(full_name, email),
           task_submissions (
             description,
@@ -154,6 +164,7 @@ export default function DashboardPage() {
             submissionNote: sub?.description ?? undefined,
             submissionImages: sub?.image_urls ?? [],
             rejectReason: t.reject_reason ?? undefined,
+            createdAt: t.created_at ?? undefined,
           };
         })
       );
@@ -516,6 +527,9 @@ export default function DashboardPage() {
                       <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                       <h3 className="mt-1 text-base font-semibold text-zinc-950">{task.title}</h3>
                       <p className="mt-1 text-xs text-zinc-600">ผู้รับผิดชอบ: {task.assignee}</p>
+                      {task.createdAt && (
+                        <p className="text-xs text-zinc-500">สั่งงาน: {formatThaiDate(task.createdAt)}</p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
