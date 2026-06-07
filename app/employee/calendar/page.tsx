@@ -14,6 +14,8 @@ type Task = {
   due_date: string | null;
   priority: string;
   status: TaskStatus;
+  submittedAt?: string;
+  resubmitDueDate?: string;
 };
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -34,23 +36,40 @@ const statusStyles: Record<TaskStatus, string> = {
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
 
-function getTimeStatus(dueDate: string, submittedAt: string | undefined, status: TaskStatus) {
-  const due = new Date(dueDate + "T23:59:59").getTime();
+function getTimeStatus(
+  dueDate: string,
+  submittedAt: string | undefined,
+  status: TaskStatus,
+  resubmitDueDate?: string,
+) {
   const now = Date.now();
 
-  if (submittedAt && (status === "pending_approval" || status === "completed" || status === "rejected")) {
-    const submitted = new Date(submittedAt).getTime();
-    const diff = due - submitted;
-    if (diff >= 0) {
-      if (diff >= MS_PER_DAY) return { text: `ส่งก่อนกำหนด ${Math.floor(diff / MS_PER_DAY)} วัน`, color: "text-emerald-700" };
-      if (diff >= MS_PER_HOUR) return { text: `ส่งก่อนกำหนด ${Math.floor(diff / MS_PER_HOUR)} ชม.`, color: "text-emerald-700" };
-      return { text: "ส่งทันเวลา", color: "text-emerald-700" };
-    }
-    const late = submitted - due;
-    if (late >= MS_PER_DAY) return { text: `ส่งช้า ${Math.ceil(late / MS_PER_DAY)} วัน`, color: "text-orange-600" };
-    return { text: `ส่งช้า ${Math.ceil(late / MS_PER_HOUR)} ชม.`, color: "text-orange-600" };
+  // completed / pending_approval: compare earliest submission date vs due_date
+  if (submittedAt && (status === "completed" || status === "pending_approval")) {
+    const dueDay = new Date(dueDate); dueDay.setHours(0, 0, 0, 0);
+    const subDay = new Date(submittedAt); subDay.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((subDay.getTime() - dueDay.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return { text: `ส่งก่อนกำหนด ${Math.abs(diffDays)} วัน`, color: "text-emerald-700" };
+    if (diffDays === 0) return { text: "ส่งตรงเวลา", color: "text-emerald-700" };
+    return { text: `ส่งช้า ${diffDays} วัน`, color: "text-orange-600" };
   }
 
+  // rejected: count down to resubmit_due_date (if set) or original due_date
+  if (status === "rejected") {
+    const deadline = new Date((resubmitDueDate ?? dueDate) + "T23:59:59").getTime();
+    const diff = deadline - now;
+    const label = resubmitDueDate ? "กำหนดแก้ไข" : "กำหนดส่ง";
+    if (diff >= 0) {
+      if (diff >= MS_PER_DAY) return { text: `เหลืออีก ${Math.ceil(diff / MS_PER_DAY)} วัน`, color: "text-orange-600" };
+      return { text: `เหลืออีก ${Math.max(1, Math.ceil(diff / MS_PER_HOUR))} ชม.`, color: "text-orange-600" };
+    }
+    const late = now - deadline;
+    if (late >= MS_PER_DAY) return { text: `เกิน${label} ${Math.ceil(late / MS_PER_DAY)} วัน`, color: "text-red-600" };
+    return { text: `เกิน${label} ${Math.max(1, Math.ceil(late / MS_PER_HOUR))} ชม.`, color: "text-red-600" };
+  }
+
+  // in_progress / open: count down to original due_date
+  const due = new Date(dueDate + "T23:59:59").getTime();
   const diff = due - now;
   if (diff >= 0) {
     if (diff >= MS_PER_DAY) return { text: `เหลืออีก ${Math.ceil(diff / MS_PER_DAY)} วัน`, color: "text-sky-700" };
@@ -101,19 +120,27 @@ export default function EmployeeCalendarPage() {
     const user = JSON.parse(raw);
     supabase
       .from("tasks")
-      .select("id, task_code, title, description, status, due_date")
+      .select("id, task_code, title, description, status, due_date, resubmit_due_date, task_submissions(created_at)")
       .eq("assigned_to", user.id)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }) => {
-        if (data) setTasks(data.map((t: any) => ({
-          id: t.id,
-          task_code: t.task_code ?? undefined,
-          title: t.title,
-          description: t.description || "",
-          due_date: t.due_date || null,
-          priority: "ปานกลาง",
-          status: t.status as TaskStatus,
-        })));
+        if (data) setTasks(data.map((t: any) => {
+          const subs: { created_at: string }[] = Array.isArray(t.task_submissions) ? t.task_submissions : [];
+          const earliestSub = subs.length > 0
+            ? subs.reduce((a, b) => new Date(a.created_at) < new Date(b.created_at) ? a : b)
+            : null;
+          return {
+            id: t.id,
+            task_code: t.task_code ?? undefined,
+            title: t.title,
+            description: t.description || "",
+            due_date: t.due_date || null,
+            priority: "ปานกลาง",
+            status: t.status as TaskStatus,
+            submittedAt: earliestSub?.created_at ?? undefined,
+            resubmitDueDate: t.resubmit_due_date ?? undefined,
+          };
+        }));
       });
   }, [router]);
 
@@ -259,7 +286,7 @@ export default function EmployeeCalendarPage() {
             )}
 
             {selectedTasks.map((task) => {
-              const ts = getTimeStatus(task.due_date!, undefined, task.status);
+              const ts = getTimeStatus(task.due_date!, task.submittedAt, task.status, task.resubmitDueDate);
               return (
                 <div key={task.id} className="rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-zinc-200">
                   <div className="mb-2 flex flex-wrap items-center gap-2">

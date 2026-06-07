@@ -20,6 +20,7 @@ type TaskItem = {
   submissionNote?: string;
   submissionImages?: string[];
   rejectReason?: string;
+  resubmitDueDate?: string;
   createdAt?: string;
 };
 
@@ -34,11 +35,16 @@ function formatThaiDate(iso: string) {
 const MS_PER_HOUR = 1000 * 60 * 60;
 const MS_PER_DAY = MS_PER_HOUR * 24;
 
-function getTimeStatus(dueDate: string, submittedAt: string | undefined, status: TaskStatus) {
-  const due = new Date(dueDate + "T23:59:59").getTime();
+function getTimeStatus(
+  dueDate: string,
+  submittedAt: string | undefined,
+  status: TaskStatus,
+  resubmitDueDate?: string,
+) {
   const now = Date.now();
 
-  if ((status === "pending_approval" || status === "completed" || status === "rejected") && submittedAt) {
+  // completed / pending_approval: compare earliest submission date vs due_date
+  if (submittedAt && (status === "completed" || status === "pending_approval")) {
     const dueDay = new Date(dueDate); dueDay.setHours(0, 0, 0, 0);
     const subDay = new Date(submittedAt); subDay.setHours(0, 0, 0, 0);
     const diffDays = Math.round((subDay.getTime() - dueDay.getTime()) / (1000 * 60 * 60 * 24));
@@ -47,6 +53,22 @@ function getTimeStatus(dueDate: string, submittedAt: string | undefined, status:
     return { text: `ส่งช้า ${diffDays} วัน`, color: "bg-amber-100 text-amber-900" };
   }
 
+  // rejected: count down to resubmit_due_date (if set) or original due_date
+  if (status === "rejected") {
+    const deadline = new Date((resubmitDueDate ?? dueDate) + "T23:59:59").getTime();
+    const diff = deadline - now;
+    const label = resubmitDueDate ? "กำหนดแก้ไข" : "กำหนดส่ง";
+    if (diff >= 0) {
+      if (diff >= MS_PER_DAY) return { text: `เหลืออีก ${Math.ceil(diff / MS_PER_DAY)} วัน`, color: "bg-orange-100 text-orange-900" };
+      return { text: `เหลืออีก ${Math.max(1, Math.ceil(diff / MS_PER_HOUR))} ชม.`, color: "bg-orange-100 text-orange-900" };
+    }
+    const late = now - deadline;
+    if (late >= MS_PER_DAY) return { text: `เกิน${label} ${Math.ceil(late / MS_PER_DAY)} วัน`, color: "bg-rose-100 text-rose-900" };
+    return { text: `เกิน${label} ${Math.max(1, Math.ceil(late / MS_PER_HOUR))} ชม.`, color: "bg-rose-100 text-rose-900" };
+  }
+
+  // in_progress / open: count down to original due_date
+  const due = new Date(dueDate + "T23:59:59").getTime();
   const diff = due - now;
   if (diff >= 0) {
     if (diff >= MS_PER_DAY) return { text: `เหลืออีก ${Math.ceil(diff / MS_PER_DAY)} วัน`, color: "bg-sky-100 text-sky-900" };
@@ -73,6 +95,7 @@ export default function DashboardPage() {
   const [taskList, setTaskList] = useState<TaskItem[]>([]);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState("");
+  const [rejectResubmitDate, setRejectResubmitDate] = useState("");
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -128,6 +151,7 @@ export default function DashboardPage() {
           due_date,
           status,
           reject_reason,
+          resubmit_due_date,
           created_at,
           assignee:profiles!tasks_assigned_to_fkey(full_name, email),
           task_submissions (
@@ -145,12 +169,16 @@ export default function DashboardPage() {
         .from("task_submissions")
         .select("task_id, description, image_urls, created_at")
         .in("task_id", taskIds)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
 
       setTaskList(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data.map((t: any) => {
-          const sub = submissions?.find((s: any) => s.task_id === t.id) ?? null;
+          const taskSubs = submissions?.filter((s: any) => s.task_id === t.id) ?? [];
+          // earliest submission for badge timing (consistent with KPI)
+          const earliestSub = taskSubs.length > 0 ? taskSubs[0] : null;
+          // latest submission for note/images display
+          const latestSub = taskSubs.length > 0 ? taskSubs[taskSubs.length - 1] : null;
           return {
             id: t.id,
             task_code: t.task_code ?? undefined,
@@ -160,10 +188,11 @@ export default function DashboardPage() {
             assignedTo: t.assigned_to ?? "",
             status: t.status as TaskStatus,
             due: t.due_date ?? "",
-            submittedAt: sub?.created_at ?? undefined,
-            submissionNote: sub?.description ?? undefined,
-            submissionImages: sub?.image_urls ?? [],
+            submittedAt: earliestSub?.created_at ?? undefined,
+            submissionNote: latestSub?.description ?? undefined,
+            submissionImages: latestSub?.image_urls ?? [],
             rejectReason: t.reject_reason ?? undefined,
+            resubmitDueDate: t.resubmit_due_date ?? undefined,
             createdAt: t.created_at ?? undefined,
           };
         })
@@ -238,6 +267,7 @@ export default function DashboardPage() {
   function handleReject(id: string) {
     setRejectTargetId(id);
     setRejectReasonInput("");
+    setRejectResubmitDate("");
   }
 
   async function confirmReject() {
@@ -248,7 +278,11 @@ export default function DashboardPage() {
     }
     const { error } = await supabase
       .from("tasks")
-      .update({ status: "rejected", reject_reason: rejectReasonInput })
+      .update({
+        status: "rejected",
+        reject_reason: rejectReasonInput,
+        resubmit_due_date: rejectResubmitDate || null,
+      })
       .eq("id", rejectTargetId);
     if (error) {
       alert(error.message);
@@ -256,7 +290,9 @@ export default function DashboardPage() {
     }
     setTaskList((prev) =>
       prev.map((t) =>
-        t.id === rejectTargetId ? { ...t, status: "rejected" as TaskStatus, rejectReason: rejectReasonInput } : t
+        t.id === rejectTargetId
+          ? { ...t, status: "rejected" as TaskStatus, rejectReason: rejectReasonInput, resubmitDueDate: rejectResubmitDate || undefined }
+          : t
       )
     );
 
@@ -273,6 +309,7 @@ export default function DashboardPage() {
 
     setRejectTargetId(null);
     setRejectReasonInput("");
+    setRejectResubmitDate("");
   }
 
   function handleEdit(task: TaskItem) {
@@ -516,7 +553,7 @@ export default function DashboardPage() {
 
           <div className="space-y-3">
             {filteredTasks.map((task) => {
-              const timeStatus = task.due ? getTimeStatus(task.due, task.submittedAt, task.status) : null;
+              const timeStatus = task.due ? getTimeStatus(task.due, task.submittedAt, task.status, task.resubmitDueDate) : null;
               const badge = statusBadge[task.status] ?? statusBadge.open;
               const isPendingApproval = task.status === "pending_approval";
               const isRejected = task.status === "rejected";
@@ -582,6 +619,20 @@ export default function DashboardPage() {
                     <div className="mt-2 rounded-xl bg-red-50 px-3 py-2 ring-1 ring-red-100">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-red-600">เหตุผลที่ไม่อนุมัติ</p>
                       <p className="mt-0.5 text-xs text-zinc-800">{task.rejectReason}</p>
+                    </div>
+                  )}
+                  {isRejected && (
+                    <div className={`mt-2 grid gap-2 ${task.resubmitDueDate ? "grid-cols-2" : "grid-cols-1"}`}>
+                      <div className="rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Due Date</p>
+                        <p className="mt-0.5 text-xs font-semibold text-zinc-900">{task.due || "—"}</p>
+                      </div>
+                      {task.resubmitDueDate && (
+                        <div className="rounded-xl bg-orange-50 px-3 py-2 ring-1 ring-orange-100">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-orange-600">Resubmit Due Date</p>
+                          <p className="mt-0.5 text-xs font-semibold text-zinc-900">{task.resubmitDueDate}</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -726,6 +777,15 @@ export default function DashboardPage() {
               placeholder="กรอกเหตุผล..."
               className="mt-3 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
             />
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-zinc-600">กำหนดส่งแก้ไข (ถ้ามี)</label>
+              <input
+                type="date"
+                value={rejectResubmitDate}
+                onChange={(e) => setRejectResubmitDate(e.target.value)}
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+              />
+            </div>
             <div className="mt-4 flex gap-3">
               <button
                 type="button"

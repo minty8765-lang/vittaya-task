@@ -17,6 +17,7 @@ type Task = {
   status: TaskStatus;
   submittedAt?: string;
   rejectReason?: string;
+  resubmitDueDate?: string;
   createdAt?: string;
 };
 
@@ -42,11 +43,16 @@ function getPriorityFromDueDate(dueDate: string | null | undefined): string {
   return "ไม่เร่งด่วน";
 }
 
-function getTimeStatus(dueDate: string, submittedAt: string | undefined, status: TaskStatus) {
-  const due = new Date(dueDate + "T23:59:59").getTime();
+function getTimeStatus(
+  dueDate: string,
+  submittedAt: string | undefined,
+  status: TaskStatus,
+  resubmitDueDate?: string,
+) {
   const now = Date.now();
 
-  if (submittedAt && (status === "pending_approval" || status === "completed" || status === "rejected")) {
+  // completed / pending_approval: show submission timing vs original due_date
+  if (submittedAt && (status === "completed" || status === "pending_approval")) {
     const dueDay = new Date(dueDate); dueDay.setHours(0, 0, 0, 0);
     const subDay = new Date(submittedAt); subDay.setHours(0, 0, 0, 0);
     const diffDays = Math.round((subDay.getTime() - dueDay.getTime()) / (1000 * 60 * 60 * 24));
@@ -55,6 +61,22 @@ function getTimeStatus(dueDate: string, submittedAt: string | undefined, status:
     return { text: `ส่งช้า ${diffDays} วัน`, color: "bg-orange-100 text-orange-700" };
   }
 
+  // rejected: count down to resubmit_due_date (if set) or original due_date
+  if (status === "rejected") {
+    const deadline = new Date((resubmitDueDate ?? dueDate) + "T23:59:59").getTime();
+    const diff = deadline - now;
+    const label = resubmitDueDate ? "กำหนดแก้ไข" : "กำหนดส่ง";
+    if (diff >= 0) {
+      if (diff >= MS_PER_DAY) return { text: `เหลืออีก ${Math.ceil(diff / MS_PER_DAY)} วัน`, color: "bg-orange-100 text-orange-700" };
+      return { text: `เหลืออีก ${Math.max(1, Math.ceil(diff / MS_PER_HOUR))} ชม.`, color: "bg-orange-100 text-orange-700" };
+    }
+    const late = now - deadline;
+    if (late >= MS_PER_DAY) return { text: `เกิน${label} ${Math.ceil(late / MS_PER_DAY)} วัน`, color: "bg-red-100 text-red-700" };
+    return { text: `เกิน${label} ${Math.max(1, Math.ceil(late / MS_PER_HOUR))} ชม.`, color: "bg-red-100 text-red-700" };
+  }
+
+  // in_progress / open: count down to original due_date
+  const due = new Date(dueDate + "T23:59:59").getTime();
   const diff = due - now;
   if (diff >= 0) {
     if (diff >= MS_PER_DAY) return { text: `เหลืออีก ${Math.ceil(diff / MS_PER_DAY)} วัน`, color: "bg-sky-100 text-sky-800" };
@@ -163,7 +185,7 @@ export default function EmployeePage() {
       const [{ data }, { data: openData }] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, task_code, title, description, due_date, status, reject_reason, created_at")
+          .select("id, task_code, title, description, due_date, status, reject_reason, resubmit_due_date, created_at, task_submissions(created_at)")
           .eq("assigned_to", currentUser!.id),
         supabase
           .from("tasks")
@@ -174,18 +196,26 @@ export default function EmployeePage() {
 
       if (data) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setTasks(data.map((t: any) => ({
-          id: t.id,
-          task_code: t.task_code ?? undefined,
-          title: t.title,
-          description: t.description || "",
-          assigner: "Admin",
-          dueDate: t.due_date || "",
-          priority: getPriorityFromDueDate(t.due_date),
-          status: (t.status || "in_progress") as TaskStatus,
-          rejectReason: t.reject_reason ?? undefined,
-          createdAt: t.created_at ?? undefined,
-        })));
+        setTasks(data.map((t: any) => {
+          const subs: { created_at: string }[] = Array.isArray(t.task_submissions) ? t.task_submissions : [];
+          const earliestSub = subs.length > 0
+            ? subs.reduce((a, b) => new Date(a.created_at) < new Date(b.created_at) ? a : b)
+            : null;
+          return {
+            id: t.id,
+            task_code: t.task_code ?? undefined,
+            title: t.title,
+            description: t.description || "",
+            assigner: "Admin",
+            dueDate: t.due_date || "",
+            priority: getPriorityFromDueDate(t.due_date),
+            status: (t.status || "in_progress") as TaskStatus,
+            submittedAt: earliestSub?.created_at ?? undefined,
+            rejectReason: t.reject_reason ?? undefined,
+            resubmitDueDate: t.resubmit_due_date ?? undefined,
+            createdAt: t.created_at ?? undefined,
+          };
+        }));
 
         // เช็กงานใกล้ครบกำหนด
         const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -695,7 +725,7 @@ export default function EmployeePage() {
                         )}
                       </div>
                       {task.dueDate && (() => {
-                        const ts = getTimeStatus(task.dueDate, task.submittedAt, task.status);
+                        const ts = getTimeStatus(task.dueDate, task.submittedAt, task.status, task.resubmitDueDate);
                         return (
                           <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${ts.color}`}>
                             {ts.text}
@@ -729,6 +759,20 @@ export default function EmployeePage() {
                     <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2.5 ring-1 ring-red-100">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-red-600">เหตุผลที่ไม่อนุมัติ</p>
                       <p className="mt-1 text-sm text-zinc-800">{task.rejectReason}</p>
+                    </div>
+                  )}
+                  {task.status === "rejected" && (
+                    <div className={`mt-2 grid gap-2 ${task.resubmitDueDate ? "grid-cols-2" : "grid-cols-1"}`}>
+                      <div className="rounded-2xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-200">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">Due Date</p>
+                        <p className="mt-1 text-sm font-semibold text-zinc-900">{task.dueDate || "—"}</p>
+                      </div>
+                      {task.resubmitDueDate && (
+                        <div className="rounded-2xl bg-orange-50 px-3 py-2.5 ring-1 ring-orange-100">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-600">Resubmit Due Date</p>
+                          <p className="mt-1 text-sm font-semibold text-zinc-900">{task.resubmitDueDate}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
