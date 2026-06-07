@@ -15,6 +15,7 @@ type EmployeeKPI = {
   inProgressTasks: number;
   pendingApprovalTasks: number;
   rejectedTasks: number;
+  qualityPenaltyTasks: number;
   kpiScore: number;
 };
 
@@ -102,6 +103,7 @@ export default function KpiPage() {
       const kpiScore = calculateKpiScore(tasks);
       const onTimeTasks = tasks.filter(isSubmittedOnTime).length;
       const lateTasks = completed - onTimeTasks;
+      const qualityPenaltyTasks = tasks.filter((t) => (t.rejection_count ?? 0) >= 2).length;
       const assignee = tasks[0]?.assignee;
       return {
         name: assignee?.full_name || assignee?.email || "ไม่ระบุชื่อ",
@@ -112,6 +114,7 @@ export default function KpiPage() {
         inProgressTasks: inProgress,
         pendingApprovalTasks: pendingApproval,
         rejectedTasks: rejected,
+        qualityPenaltyTasks,
         kpiScore,
       };
     });
@@ -211,6 +214,9 @@ export default function KpiPage() {
                         )}
                         {e.rejectedTasks > 0 && (
                           <p className="text-xs text-rose-700">มีงานไม่ผ่าน {e.rejectedTasks} งาน ควรตรวจรายละเอียดก่อนส่ง</p>
+                        )}
+                        {e.qualityPenaltyTasks > 0 && (
+                          <p className="text-xs text-rose-700">คะแนนลดลงเพราะมีงานที่ถูกตีกลับ 2 ครั้งขึ้นไป จำนวน {e.qualityPenaltyTasks} งาน เป็นการหักคะแนนคุณภาพ ไม่ใช่การส่งช้า</p>
                         )}
                         {e.inProgressTasks > 0 && (
                           <p className="text-xs text-sky-700">มีงานกำลังทำ {e.inProgressTasks} งาน ควรติดตามให้เสร็จตามกำหนด</p>
