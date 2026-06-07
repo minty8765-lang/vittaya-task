@@ -198,15 +198,20 @@ export default function DashboardPage() {
         })
       );
 
-      // เช็กงานที่จะครบกำหนดพรุ่งนี้ แจ้งเตือน admin
+      // เช็กงานที่จะครบกำหนดพรุ่งนี้และงานที่เกินกำหนด แจ้งเตือน admin
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
       const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+      const todayStr = new Date().toISOString().slice(0, 10);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dueTomorrow = data.filter((t: any) =>
         t.status === "in_progress" && t.assigned_to && t.due_date === tomorrowStr
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const overdueInProgress = data.filter((t: any) =>
+        t.status === "in_progress" && t.assigned_to && t.due_date && t.due_date < todayStr
+      );
 
-      if (dueTomorrow.length === 0) return;
+      if (dueTomorrow.length === 0 && overdueInProgress.length === 0) return;
 
       const { data: admins } = await supabase.from("profiles").select("id").eq("role", "admin");
       if (!admins?.length) return;
@@ -232,6 +237,30 @@ export default function DashboardPage() {
             message: `งาน ${t.title} ของ ${assigneeName} จะครบกำหนดพรุ่งนี้`,
           });
           if (notifError) console.error("admin_due_tomorrow failed:", notifError.message);
+        }
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const t of overdueInProgress as any[]) {
+        const assigneeName = t.assignee?.full_name || t.assignee?.email || "พนักงาน";
+        for (const admin of admins) {
+          const { data: existing } = await supabase
+            .from("notifications")
+            .select("id")
+            .eq("user_id", admin.id)
+            .eq("task_id", t.id)
+            .eq("type", "admin_overdue")
+            .limit(1);
+
+          if (existing && existing.length > 0) continue;
+
+          const { error: notifError } = await supabase.from("notifications").insert({
+            user_id: admin.id,
+            task_id: t.id,
+            type: "admin_overdue",
+            message: `งาน ${t.title} ของ ${assigneeName} เกินกำหนดแล้ว`,
+          });
+          if (notifError) console.error("admin_overdue failed:", notifError.message);
         }
       }
     }
