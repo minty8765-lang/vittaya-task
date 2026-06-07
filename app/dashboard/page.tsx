@@ -220,22 +220,15 @@ export default function DashboardPage() {
       for (const t of dueTomorrow as any[]) {
         const assigneeName = t.assignee?.full_name || t.assignee?.email || "พนักงาน";
         for (const admin of admins) {
-          const { data: existing } = await supabase
-            .from("notifications")
-            .select("id")
-            .eq("user_id", admin.id)
-            .eq("task_id", t.id)
-            .eq("type", "admin_due_tomorrow")
-            .limit(1);
-
-          if (existing && existing.length > 0) continue;
-
-          const { error: notifError } = await supabase.from("notifications").insert({
-            user_id: admin.id,
-            task_id: t.id,
-            type: "admin_due_tomorrow",
-            message: `งาน ${t.title} ของ ${assigneeName} จะครบกำหนดพรุ่งนี้`,
-          });
+          const { error: notifError } = await supabase.from("notifications").upsert(
+            {
+              user_id: admin.id,
+              task_id: t.id,
+              type: "admin_due_tomorrow",
+              message: `งาน ${t.title} ของ ${assigneeName} จะครบกำหนดพรุ่งนี้`,
+            },
+            { onConflict: "user_id,task_id,type", ignoreDuplicates: true }
+          );
           if (notifError) console.error("admin_due_tomorrow failed:", notifError.message);
         }
       }
@@ -244,22 +237,15 @@ export default function DashboardPage() {
       for (const t of overdueInProgress as any[]) {
         const assigneeName = t.assignee?.full_name || t.assignee?.email || "พนักงาน";
         for (const admin of admins) {
-          const { data: existing } = await supabase
-            .from("notifications")
-            .select("id")
-            .eq("user_id", admin.id)
-            .eq("task_id", t.id)
-            .eq("type", "admin_overdue")
-            .limit(1);
-
-          if (existing && existing.length > 0) continue;
-
-          const { error: notifError } = await supabase.from("notifications").insert({
-            user_id: admin.id,
-            task_id: t.id,
-            type: "admin_overdue",
-            message: `งาน ${t.title} ของ ${assigneeName} เกินกำหนดแล้ว`,
-          });
+          const { error: notifError } = await supabase.from("notifications").upsert(
+            {
+              user_id: admin.id,
+              task_id: t.id,
+              type: "admin_overdue",
+              message: `งาน ${t.title} ของ ${assigneeName} เกินกำหนดแล้ว`,
+            },
+            { onConflict: "user_id,task_id,type", ignoreDuplicates: true }
+          );
           if (notifError) console.error("admin_overdue failed:", notifError.message);
         }
       }
@@ -289,7 +275,7 @@ export default function DashboardPage() {
         type: "completed",
         message: `งาน ${task.title} ได้รับการอนุมัติแล้ว`,
       });
-      if (notifError) console.error(notifError);
+      if (notifError && notifError.code !== "23505") console.error(notifError);
     }
   }
 
@@ -333,7 +319,7 @@ export default function DashboardPage() {
         type: "rejected",
         message: `งาน ${task.title} ไม่ผ่าน: ${rejectReasonInput}`,
       });
-      if (notifError) console.error(notifError);
+      if (notifError && notifError.code !== "23505") console.error(notifError);
     }
 
     setRejectTargetId(null);
@@ -380,7 +366,7 @@ export default function DashboardPage() {
         type: "task_updated",
         message: `งาน ${editTitle} มีการแก้ไข กรุณาตรวจสอบรายละเอียดอีกครั้ง`,
       });
-      if (notifError) console.error("task_updated notification failed:", notifError.message);
+      if (notifError && notifError.code !== "23505") console.error("task_updated notification failed:", notifError.message);
     }
 
     setEditTargetId(null);
