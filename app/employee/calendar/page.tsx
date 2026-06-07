@@ -97,6 +97,14 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function formatThaiDate(iso: string) {
+  const d = new Date(iso);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear() + 543;
+  return `${day}/${month}/${year}`;
+}
+
 const statusDotColor: Record<TaskStatus, string> = {
   in_progress: "bg-sky-500",
   pending_approval: "bg-amber-400",
@@ -306,6 +314,11 @@ export default function EmployeeCalendarPage() {
                     </span>
                     <span className={`text-xs font-semibold ${ts.color}`}>{ts.text}</span>
                   </div>
+                  {task.submittedAt && (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      วันที่ส่งงาน: <span className="font-medium text-zinc-700">{formatThaiDate(task.submittedAt)}</span>
+                    </p>
+                  )}
                 </div>
               );
             })}

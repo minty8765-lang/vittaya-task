@@ -723,6 +723,11 @@ export default function EmployeePage() {
                             สั่งงาน: <span className="font-semibold text-zinc-900">{formatThaiDate(task.createdAt)}</span>
                           </p>
                         )}
+                        {task.submittedAt && (
+                          <p className="text-sm text-zinc-600">
+                            วันที่ส่งงาน: <span className="font-semibold text-zinc-900">{formatThaiDate(task.submittedAt)}</span>
+                          </p>
+                        )}
                       </div>
                       {task.dueDate && (() => {
                         const ts = getTimeStatus(task.dueDate, task.submittedAt, task.status, task.resubmitDueDate);

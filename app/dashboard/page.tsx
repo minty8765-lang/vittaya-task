@@ -567,6 +567,9 @@ export default function DashboardPage() {
                       {task.createdAt && (
                         <p className="text-xs text-zinc-500">สั่งงาน: {formatThaiDate(task.createdAt)}</p>
                       )}
+                      {task.submittedAt && (
+                        <p className="text-xs text-zinc-500">วันที่ส่งงาน: <span className="font-semibold text-zinc-700">{formatThaiDate(task.submittedAt)}</span></p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
