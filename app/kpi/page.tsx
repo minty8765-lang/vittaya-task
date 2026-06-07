@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { taskScore, calculateKpiScore } from "@/lib/kpiUtils";
+import { calculateKpiScore } from "@/lib/kpiUtils";
 
 type EmployeeKPI = {
   name: string;
@@ -20,6 +20,7 @@ type EmployeeKPI = {
 
 type StoredTask = {
   id: string;
+  title: string;
   status: string;
   assigned_to: string | null;
   due_date: string | null;
@@ -28,6 +29,18 @@ type StoredTask = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   assignee: any;
 };
+
+function isSubmittedOnTime(task: StoredTask): boolean {
+  if (task.status !== "completed") return false;
+  if (!task.due_date) return true;
+  if (task.task_submissions.length === 0) return true;
+  const earliestSub = task.task_submissions.reduce((a, b) =>
+    new Date(a.created_at) < new Date(b.created_at) ? a : b
+  );
+  const due = new Date(task.due_date); due.setHours(23, 59, 59, 999);
+  const sub = new Date(earliestSub.created_at);
+  return sub.getTime() <= due.getTime();
+}
 
 function levelAndColor(score: number) {
   if (score >= 90) return { level: "ดีมาก", color: "bg-emerald-100 text-emerald-900" };
@@ -50,7 +63,7 @@ export default function KpiPage() {
   useEffect(() => {
     supabase
       .from("tasks")
-      .select("id, status, assigned_to, due_date, rejection_count, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
+      .select("id, title, status, assigned_to, due_date, rejection_count, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
       .not("assigned_to", "is", null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }) => {
@@ -58,6 +71,7 @@ export default function KpiPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setTaskList((data as any[]).map((t: any) => ({
             id: t.id,
+            title: t.title ?? "",
             status: t.status,
             assigned_to: t.assigned_to ?? null,
             due_date: t.due_date ?? null,
@@ -86,7 +100,7 @@ export default function KpiPage() {
       const pendingApproval = tasks.filter((t) => t.status === "pending_approval").length;
       const rejected = tasks.filter((t) => t.status === "rejected").length;
       const kpiScore = calculateKpiScore(tasks);
-      const onTimeTasks = tasks.filter((t) => t.status === "completed" && taskScore(t) === 100).length;
+      const onTimeTasks = tasks.filter(isSubmittedOnTime).length;
       const lateTasks = completed - onTimeTasks;
       const assignee = tasks[0]?.assignee;
       return {

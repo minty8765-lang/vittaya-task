@@ -27,11 +27,11 @@ export function taskScore(task: KpiTask): number {
       if (submissions.length === 0) {
         timingScore = 100;
       } else {
-        const latestSub = submissions.reduce((a, b) =>
-          new Date(a.created_at) > new Date(b.created_at) ? a : b
+        const earliestSub = submissions.reduce((a, b) =>
+          new Date(a.created_at) < new Date(b.created_at) ? a : b
         );
-        const due = new Date(task.due_date); due.setHours(0, 0, 0, 0);
-        const sub = new Date(latestSub.created_at); sub.setHours(0, 0, 0, 0);
+        const due = new Date(task.due_date); due.setHours(23, 59, 59, 999);
+        const sub = new Date(earliestSub.created_at);
         const diffDays = Math.ceil((sub.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays <= 0) timingScore = 100;
         else if (diffDays <= 3) timingScore = 80;
