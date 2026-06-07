@@ -285,6 +285,16 @@ export default function EmployeePage() {
 
   const filteredTasks = tasks.filter((task) => activeTab === "all" || task.status === activeTab);
 
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    const aComplete = a.status === "completed" ? 1 : 0;
+    const bComplete = b.status === "completed" ? 1 : 0;
+    if (aComplete !== bComplete) return aComplete - bComplete;
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return a.dueDate.localeCompare(b.dueDate);
+  });
+
   const counts = tasks.reduce(
     (acc, task) => {
       acc[task.status] += 1;
@@ -693,13 +703,13 @@ export default function EmployeePage() {
           )}
 
           <div className="space-y-4">
-            {filteredTasks.length === 0 ? (
+            {sortedTasks.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-sm text-zinc-600">
                 ยังไม่มีงานในหมวดนี้
               </div>
             ) : (
-              filteredTasks.map((task) => (
-                <div key={task.id} id={`task-${task.id}`} className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4 shadow-sm sm:p-5">
+              sortedTasks.map((task) => (
+                <div key={task.id} id={`task-${task.id}`} className={`rounded-[1.5rem] border p-4 shadow-sm sm:p-5 ${task.status === "completed" ? "border-emerald-200 bg-emerald-50" : "border-zinc-200 bg-zinc-50"}`}>
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-2">

@@ -414,6 +414,16 @@ export default function DashboardPage() {
     return task.status === selectedStatus;
   });
 
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    const aComplete = a.status === "completed" ? 1 : 0;
+    const bComplete = b.status === "completed" ? 1 : 0;
+    if (aComplete !== bComplete) return aComplete - bComplete;
+    if (!a.due && !b.due) return 0;
+    if (!a.due) return 1;
+    if (!b.due) return -1;
+    return a.due.localeCompare(b.due);
+  });
+
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-6">
       <div className="mx-auto w-full max-w-md sm:max-w-lg space-y-6">
@@ -552,13 +562,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {filteredTasks.map((task) => {
+            {sortedTasks.map((task) => {
               const timeStatus = task.due ? getTimeStatus(task.due, task.submittedAt, task.status, task.resubmitDueDate) : null;
               const badge = statusBadge[task.status] ?? statusBadge.open;
               const isPendingApproval = task.status === "pending_approval";
               const isRejected = task.status === "rejected";
               return (
-                <div key={task.id} id={`task-${task.id}`} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                <div key={task.id} id={`task-${task.id}`} className={`rounded-2xl border p-3 ${task.status === "completed" ? "border-emerald-200 bg-emerald-50" : "border-zinc-200 bg-zinc-50"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
@@ -661,7 +671,7 @@ export default function DashboardPage() {
                 </div>
               );
             })}
-            {filteredTasks.length === 0 && (
+            {sortedTasks.length === 0 && (
               <div className="rounded-2xl bg-zinc-100 p-6 text-center text-sm text-zinc-500">
                 ไม่มีงานในหมวดนี้
               </div>
