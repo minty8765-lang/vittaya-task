@@ -16,6 +16,7 @@ type EmployeeKPI = {
   pendingApprovalTasks: number;
   rejectedTasks: number;
   qualityPenaltyTasks: number;
+  lateResubmissionTasks: number;
   kpiScore: number;
 };
 
@@ -106,6 +107,17 @@ export default function KpiPage() {
       const onTimeTasks = tasks.filter(isSubmittedOnTime).length;
       const lateTasks = completed - onTimeTasks;
       const qualityPenaltyTasks = tasks.filter((t) => (t.rejection_count ?? 0) >= 2).length;
+      const lateResubmissionTasks = tasks.filter((t) => {
+        if (!t.resubmit_due_date) return false;
+        const subs = t.task_submissions;
+        if (subs.length <= 1) return false;
+        const latestSub = subs.reduce((a, b) =>
+          new Date(a.created_at) > new Date(b.created_at) ? a : b
+        );
+        const resubmitDue = new Date(t.resubmit_due_date);
+        resubmitDue.setHours(23, 59, 59, 999);
+        return new Date(latestSub.created_at) > resubmitDue;
+      }).length;
       const assignee = tasks[0]?.assignee;
       return {
         name: assignee?.full_name || assignee?.email || "ไม่ระบุชื่อ",
@@ -117,6 +129,7 @@ export default function KpiPage() {
         pendingApprovalTasks: pendingApproval,
         rejectedTasks: rejected,
         qualityPenaltyTasks,
+        lateResubmissionTasks,
         kpiScore,
       };
     });
@@ -219,6 +232,9 @@ export default function KpiPage() {
                         )}
                         {e.qualityPenaltyTasks > 0 && (
                           <p className="text-xs text-rose-700">คะแนนลดลงเพราะมีงานที่ถูกตีกลับ 2 ครั้งขึ้นไป จำนวน {e.qualityPenaltyTasks} งาน เป็นการหักคะแนนคุณภาพ ไม่ใช่การส่งช้า</p>
+                        )}
+                        {e.lateResubmissionTasks > 0 && (
+                          <p className="text-xs text-rose-700">มีงานส่งแก้ไขเกินกำหนด {e.lateResubmissionTasks} งาน จึงถูกหักคะแนน KPI</p>
                         )}
                         {e.inProgressTasks > 0 && (
                           <p className="text-xs text-sky-700">มีงานกำลังทำ {e.inProgressTasks} งาน ควรติดตามให้เสร็จตามกำหนด</p>

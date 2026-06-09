@@ -69,6 +69,18 @@ export default function EmployeeKpiPage() {
   const onTime = tasks.filter((t) => t.status === "completed" && taskScore(t) === 100).length;
   const late = completed - onTime;
 
+  const lateResubmissionTasks = tasks.filter((t) => {
+    if (!t.resubmit_due_date) return false;
+    const subs = t.task_submissions;
+    if (subs.length <= 1) return false;
+    const latestSub = subs.reduce((a, b) =>
+      new Date(a.created_at) > new Date(b.created_at) ? a : b
+    );
+    const resubmitDue = new Date(t.resubmit_due_date);
+    resubmitDue.setHours(23, 59, 59, 999);
+    return new Date(latestSub.created_at) > resubmitDue;
+  }).length;
+
   const maxLateDays = tasks.reduce((max, t) => {
     if (t.status !== "completed" || !t.due_date) return max;
     const latestSub = t.task_submissions.length > 0
@@ -160,6 +172,11 @@ export default function EmployeeKpiPage() {
               {late > 0 && (
                 <div className="rounded-2xl bg-orange-50 px-4 py-3 ring-1 ring-orange-100">
                   <p className="text-sm text-orange-700">มีงานส่งช้า {late} ชิ้น ควรส่งก่อนกำหนดเพื่อลดความเสี่ยง</p>
+                </div>
+              )}
+              {lateResubmissionTasks > 0 && (
+                <div className="rounded-2xl bg-rose-50 px-4 py-3 ring-1 ring-rose-100">
+                  <p className="text-sm text-rose-700">มีงานส่งแก้ไขเกินกำหนด {lateResubmissionTasks} งาน จึงถูกหักคะแนน KPI</p>
                 </div>
               )}
             </div>
