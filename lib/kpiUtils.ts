@@ -5,6 +5,7 @@ export type KpiSubmission = {
 export type KpiTask = {
   status: string;
   due_date: string | null;
+  resubmit_due_date?: string | null;
   assigned_to?: string | null;
   rejection_count?: number;
   task_submissions: KpiSubmission[];
@@ -59,7 +60,21 @@ export function taskScore(task: KpiTask): number {
   // --- quality penalty ---
   const qualityPenalty = (task.rejection_count ?? 0) >= 2 ? 20 : 0;
 
-  return Math.max(0, timingScore - qualityPenalty);
+  // --- resubmit lateness penalty ---
+  let resubmitLatePenalty = 0;
+  const submissions = task.task_submissions ?? [];
+  if (task.resubmit_due_date && submissions.length > 1) {
+    const latestSub = submissions.reduce((a, b) =>
+      new Date(a.created_at) > new Date(b.created_at) ? a : b
+    );
+    const resubmitDue = new Date(task.resubmit_due_date);
+    resubmitDue.setHours(23, 59, 59, 999);
+    if (new Date(latestSub.created_at) > resubmitDue) {
+      resubmitLatePenalty = 20;
+    }
+  }
+
+  return Math.max(0, timingScore - qualityPenalty - resubmitLatePenalty);
 }
 
 export function calculateKpiScore(tasks: KpiTask[]): number {
