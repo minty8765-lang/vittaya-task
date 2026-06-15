@@ -18,6 +18,7 @@ export default function NewTaskPage() {
   const [assigneeError, setAssigneeError] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -58,6 +59,21 @@ export default function NewTaskPage() {
       return;
     }
 
+    let imageUrls: string[] = [];
+    if (imageFile) {
+      const path = `task-${Date.now()}-${imageFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("task-images")
+        .upload(path, imageFile);
+      if (uploadError) {
+        setSubmitError(uploadError.message);
+        setIsSubmitting(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("task-images").getPublicUrl(path);
+      imageUrls = [urlData.publicUrl];
+    }
+
     const { data: insertedTasks, error } = await supabase.from("tasks").insert({
       title,
       description,
@@ -65,6 +81,7 @@ export default function NewTaskPage() {
       created_by: user.id,
       assigned_to: assigneeId,
       status,
+      image_urls: imageUrls,
     }).select("id");
 
     setIsSubmitting(false);
@@ -128,7 +145,12 @@ export default function NewTaskPage() {
             </label>
             <label className="block text-sm font-medium text-zinc-700">
               แนบรูป
-              <input type="file" accept="image/*" className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 shadow-sm focus:outline-none" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                className="mt-2 block w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 shadow-sm focus:outline-none"
+              />
             </label>
           </div>
 

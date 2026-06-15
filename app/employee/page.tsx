@@ -19,6 +19,7 @@ type Task = {
   rejectReason?: string;
   resubmitDueDate?: string;
   createdAt?: string;
+  imageUrls: string[];
 };
 
 
@@ -111,6 +112,7 @@ type OpenTask = {
   description: string;
   dueDate: string;
   priority: string;
+  imageUrls: string[];
 };
 
 
@@ -185,11 +187,11 @@ export default function EmployeePage() {
       const [{ data }, { data: openData }] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, task_code, title, description, due_date, status, reject_reason, resubmit_due_date, created_at, task_submissions(created_at)")
+          .select("id, task_code, title, description, image_urls, due_date, status, reject_reason, resubmit_due_date, created_at, task_submissions(created_at)")
           .eq("assigned_to", currentUser!.id),
         supabase
           .from("tasks")
-          .select("id, task_code, title, description, due_date, created_at")
+          .select("id, task_code, title, description, image_urls, due_date, created_at")
           .eq("status", "open")
           .is("assigned_to", null),
       ]);
@@ -214,6 +216,7 @@ export default function EmployeePage() {
             rejectReason: t.reject_reason ?? undefined,
             resubmitDueDate: t.resubmit_due_date ?? undefined,
             createdAt: t.created_at ?? undefined,
+            imageUrls: Array.isArray(t.image_urls) ? t.image_urls : [],
           };
         }));
 
@@ -276,6 +279,7 @@ export default function EmployeePage() {
           description: t.description || "",
           dueDate: t.due_date || "",
           priority: getPriorityFromDueDate(t.due_date),
+          imageUrls: Array.isArray(t.image_urls) ? t.image_urls : [],
         })));
       }
     }
@@ -430,6 +434,7 @@ export default function EmployeePage() {
         dueDate: task.dueDate,
         priority: task.priority,
         status: "in_progress" as TaskStatus,
+        imageUrls: task.imageUrls,
       },
     ]);
 
@@ -656,6 +661,20 @@ export default function EmployeePage() {
                           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                           <h3 className="mt-1 text-lg font-semibold text-zinc-950">{task.title}</h3>
                           <p className="mt-2 text-sm leading-6 text-zinc-600">{task.description}</p>
+                          {task.imageUrls.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {task.imageUrls.map((url, i) => (
+                                <a key={i} href={url} target="_blank" rel="noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={url}
+                                    alt={`รูปงาน ${i + 1}`}
+                                    className="h-16 w-16 rounded-xl object-cover ring-1 ring-zinc-200 hover:ring-sky-400 transition"
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <p className="text-sm text-zinc-600">
                           Due date: <span className="font-semibold text-zinc-900">{task.dueDate || "ไม่มีกำหนด"}</span>
@@ -720,6 +739,20 @@ export default function EmployeePage() {
                         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500">{task.task_code ?? task.id.slice(0, 8)}</p>
                         <h2 className="mt-1 text-xl font-semibold text-zinc-950 sm:text-2xl">{task.title}</h2>
                         <p className="mt-2 text-sm leading-6 text-zinc-600">{task.description}</p>
+                        {task.imageUrls.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {task.imageUrls.map((url, i) => (
+                              <a key={i} href={url} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={url}
+                                  alt={`รูปงาน ${i + 1}`}
+                                  className="h-16 w-16 rounded-xl object-cover ring-1 ring-zinc-200 hover:ring-sky-400 transition"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
                         <p className="text-sm text-zinc-600">

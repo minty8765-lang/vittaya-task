@@ -18,6 +18,7 @@ type TaskItem = {
   due: string;
   submittedAt?: string;
   submissionNote?: string;
+  imageUrls?: string[];
   submissionImages?: string[];
   rejectReason?: string;
   resubmitDueDate?: string;
@@ -103,6 +104,7 @@ export default function DashboardPage() {
   const [editAssignedTo, setEditAssignedTo] = useState("");
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [viewDetailId, setViewDetailId] = useState<string | null>(null);
   const [adminId, setAdminId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -147,6 +149,7 @@ export default function DashboardPage() {
           task_code,
           title,
           description,
+          image_urls,
           assigned_to,
           due_date,
           status,
@@ -188,6 +191,7 @@ export default function DashboardPage() {
             assignedTo: t.assigned_to ?? "",
             status: t.status as TaskStatus,
             due: t.due_date ?? "",
+            imageUrls: Array.isArray(t.image_urls) ? t.image_urls : [],
             submittedAt: earliestSub?.created_at ?? undefined,
             submissionNote: latestSub?.description ?? undefined,
             submissionImages: latestSub?.image_urls ?? [],
@@ -607,6 +611,13 @@ export default function DashboardPage() {
                       <div className="flex gap-1">
                         <button
                           type="button"
+                          onClick={() => setViewDetailId(task.id)}
+                          className="rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-600 hover:bg-sky-100"
+                        >
+                          ดูรายละเอียด
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleEdit(task)}
                           className="rounded-lg bg-zinc-100 px-2 py-1 text-[11px] font-semibold text-zinc-600 hover:bg-zinc-200"
                         >
@@ -833,6 +844,131 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {viewDetailId && (() => {
+        const t = taskList.find((t) => t.id === viewDetailId);
+        if (!t) return null;
+        const badge = statusBadge[t.status] ?? statusBadge.open;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 sm:items-center sm:pb-0">
+            <div className="w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">{t.task_code ?? t.id.slice(0, 8)}</p>
+                  <h2 className="mt-1 text-base font-semibold text-zinc-950 leading-snug">{t.title}</h2>
+                  <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewDetailId(null)}
+                  className="shrink-0 rounded-full bg-zinc-100 p-1.5 text-zinc-500 hover:bg-zinc-200"
+                  aria-label="ปิด"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">ผู้รับผิดชอบ</p>
+                    <p className="mt-0.5 text-xs font-semibold text-zinc-900">{t.assignee}</p>
+                  </div>
+                  <div className="rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">กำหนดส่ง</p>
+                    <p className="mt-0.5 text-xs font-semibold text-zinc-900">{t.due ? formatThaiDate(t.due) : "—"}</p>
+                  </div>
+                  {t.createdAt && (
+                    <div className="rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">สั่งงาน</p>
+                      <p className="mt-0.5 text-xs font-semibold text-zinc-900">{formatThaiDate(t.createdAt)}</p>
+                    </div>
+                  )}
+                  {t.submittedAt && (
+                    <div className="rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-200">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">วันที่ส่งงาน</p>
+                      <p className="mt-0.5 text-xs font-semibold text-zinc-900">{formatThaiDate(t.submittedAt)}</p>
+                    </div>
+                  )}
+                  {t.resubmitDueDate && (
+                    <div className="col-span-2 rounded-xl bg-orange-50 px-3 py-2 ring-1 ring-orange-100">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-orange-500">กำหนดส่งแก้ไข</p>
+                      <p className="mt-0.5 text-xs font-semibold text-zinc-900">{formatThaiDate(t.resubmitDueDate)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {t.description && (
+                  <div className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-200">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">รายละเอียดงาน</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-800 whitespace-pre-wrap">{t.description}</p>
+                  </div>
+                )}
+
+                {t.submissionNote && (
+                  <div className="rounded-xl bg-amber-50 px-3 py-2.5 ring-1 ring-amber-100">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-amber-600">ข้อความพนักงาน</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-800 whitespace-pre-wrap">{t.submissionNote}</p>
+                  </div>
+                )}
+
+                {t.rejectReason && (
+                  <div className="rounded-xl bg-red-50 px-3 py-2.5 ring-1 ring-red-100">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-red-500">เหตุผลที่ไม่อนุมัติ</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-800 whitespace-pre-wrap">{t.rejectReason}</p>
+                  </div>
+                )}
+
+                {t.imageUrls && t.imageUrls.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-zinc-400">รูปแนบตอนสั่งงาน</p>
+                    <div className="flex flex-wrap gap-2">
+                      {t.imageUrls.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`รูปสั่งงาน ${i + 1}`}
+                            className="h-24 w-24 rounded-xl object-cover ring-1 ring-zinc-200 hover:ring-sky-400 transition"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {t.submissionImages && t.submissionImages.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-amber-600">รูปที่พนักงานส่ง</p>
+                    <div className="flex flex-wrap gap-2">
+                      {t.submissionImages.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`รูปที่พนักงานส่ง ${i + 1}`}
+                            className="h-24 w-24 rounded-xl object-cover ring-1 ring-zinc-200 hover:ring-amber-400 transition"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewDetailId(null)}
+                className="mt-5 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 }
