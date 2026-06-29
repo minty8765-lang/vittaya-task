@@ -486,6 +486,14 @@ export default function EmployeePage() {
 
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-6 sm:px-5 sm:py-7">
+      <style>{`
+        @keyframes dino-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        .dino-float { animation: dino-float 2.5s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .dino-float { animation: none; } }
+      `}</style>
       <div className="mx-auto w-full max-w-md sm:max-w-lg space-y-6">
         <div className="rounded-[1.75rem] bg-white p-4 shadow-lg ring-1 ring-zinc-200 sm:p-5">
           {/* แถวบน: title ซ้าย, แจ้งเตือน ขวา */}
@@ -594,6 +602,12 @@ export default function EmployeePage() {
             const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
             const barColor = percent === 100 ? "bg-emerald-500" : percent >= 70 ? "bg-sky-500" : "bg-orange-400";
             const textColor = percent === 100 ? "text-emerald-600" : percent >= 70 ? "text-sky-600" : "text-orange-500";
+            const dinoSrc =
+              percent === 100 ? "/dino-100.png" :
+              percent >= 75   ? "/dino-75.png"  :
+              percent >= 50   ? "/dino-50.png"  :
+              percent >= 25   ? "/dino-25.png"  :
+                                "/dino-0.png";
             const motivational =
               percent === 100
                 ? "ยอดเยี่ยม! เสร็จงานทั้งหมดแล้ว"
@@ -603,28 +617,39 @@ export default function EmployeePage() {
             return (
               <div className="mb-5 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 mb-3">ความคืบหน้างาน</p>
-                <div className="flex items-end justify-between mb-2">
-                  <span className={`text-2xl font-bold ${textColor}`}>{percent}%</span>
-                  <span className="text-xs text-zinc-500">{motivational}</span>
-                </div>
-                <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-200">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`}
-                    style={{ width: `${percent}%` }}
+                <div className="flex items-center gap-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={dinoSrc}
+                    alt=""
+                    aria-hidden="true"
+                    className="dino-float shrink-0 w-16 sm:w-24 object-contain self-center"
                   />
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl bg-white p-2 ring-1 ring-zinc-200">
-                    <p className="text-base font-bold text-zinc-950">{total}</p>
-                    <p className="text-[10px] text-zinc-500">งานทั้งหมด</p>
-                  </div>
-                  <div className="rounded-xl bg-white p-2 ring-1 ring-zinc-200">
-                    <p className="text-base font-bold text-emerald-600">{completed}</p>
-                    <p className="text-[10px] text-zinc-500">งานสำเร็จ</p>
-                  </div>
-                  <div className="rounded-xl bg-white p-2 ring-1 ring-zinc-200">
-                    <p className="text-base font-bold text-orange-500">{pending}</p>
-                    <p className="text-[10px] text-zinc-500">งานค้าง</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-end justify-between mb-2">
+                      <span className={`text-2xl font-bold ${textColor}`}>{percent}%</span>
+                      <span className="text-xs text-zinc-500">{motivational}</span>
+                    </div>
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-200">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-xl bg-white p-2 ring-1 ring-zinc-200">
+                        <p className="text-base font-bold text-zinc-950">{total}</p>
+                        <p className="text-[10px] text-zinc-500">งานทั้งหมด</p>
+                      </div>
+                      <div className="rounded-xl bg-white p-2 ring-1 ring-zinc-200">
+                        <p className="text-base font-bold text-emerald-600">{completed}</p>
+                        <p className="text-[10px] text-zinc-500">งานสำเร็จ</p>
+                      </div>
+                      <div className="rounded-xl bg-white p-2 ring-1 ring-zinc-200">
+                        <p className="text-base font-bold text-orange-500">{pending}</p>
+                        <p className="text-[10px] text-zinc-500">งานค้าง</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

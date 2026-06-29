@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { calculateKpiScore } from "@/lib/kpiUtils";
+import { calculateKpiScore, shouldCountInKpi, taskScore } from "@/lib/kpiUtils";
 
 type EmployeeKPI = {
   name: string;
@@ -22,6 +22,7 @@ type EmployeeKPI = {
 
 type StoredTask = {
   id: string;
+  task_code?: string;
   title: string;
   status: string;
   assigned_to: string | null;
@@ -52,6 +53,79 @@ function levelAndColor(score: number) {
   return { level: "น่าเป็นห่วง", color: "bg-rose-100 text-rose-900" };
 }
 
+// Debug helper — replicates taskScore logic to produce a human-readable reason.
+// Does NOT affect KPI calculation; used only for the dev debug card.
+function taskScoreBreakdown(task: StoredTask) {
+  const submissions = task.task_submissions ?? [];
+  const earliestSub = submissions.length > 0
+    ? submissions.reduce((a, b) => new Date(a.created_at) < new Date(b.created_at) ? a : b)
+    : null;
+  const latestSub = submissions.length > 0
+    ? submissions.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b)
+    : null;
+
+  let timingScore: number;
+  let timingReason: string;
+
+  if (task.status === "completed") {
+    if (!task.due_date) {
+      timingScore = 100; timingReason = "completed, ไม่มี due_date";
+    } else if (submissions.length === 0) {
+      timingScore = 100; timingReason = "completed, ไม่มี submission";
+    } else {
+      const due = new Date(task.due_date); due.setHours(23, 59, 59, 999);
+      const sub = new Date(earliestSub!.created_at);
+      const diffDays = Math.ceil((sub.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0)       { timingScore = 100; timingReason = `completed, ส่งตรงเวลา (diff=${diffDays}d)`; }
+      else if (diffDays <= 3)  { timingScore = 80;  timingReason = `completed, ช้า ${diffDays}d (≤3d → 80)`;  }
+      else if (diffDays <= 7)  { timingScore = 60;  timingReason = `completed, ช้า ${diffDays}d (≤7d → 60)`;  }
+      else if (diffDays <= 14) { timingScore = 40;  timingReason = `completed, ช้า ${diffDays}d (≤14d → 40)`; }
+      else                     { timingScore = 20;  timingReason = `completed, ช้า ${diffDays}d (>14d → 20)`; }
+    }
+  } else if (task.status === "in_progress") {
+    if (!task.due_date) {
+      timingScore = 100; timingReason = "in_progress, ไม่มี due_date";
+    } else {
+      const due = new Date(task.due_date); due.setHours(23, 59, 59, 999);
+      if (new Date() <= due) { timingScore = 100; timingReason = "in_progress, ยังไม่เลยกำหนด"; }
+      else                   { timingScore = 70;  timingReason = "in_progress, เลยกำหนดแล้ว → 70"; }
+    }
+  } else if (task.status === "pending_approval") {
+    timingScore = 100; timingReason = "pending_approval → 100";
+  } else if (task.status === "rejected") {
+    timingScore = 100; timingReason = "rejected → 100 timing";
+  } else {
+    timingScore = 100; timingReason = `${task.status} → 100`;
+  }
+
+  const qualityPenalty = (task.rejection_count ?? 0) >= 2 ? 20 : 0;
+
+  let resubmitLatePenalty = 0;
+  let resubmitReason = "";
+  if (task.resubmit_due_date && submissions.length > 1) {
+    const resubmitDue = new Date(task.resubmit_due_date);
+    resubmitDue.setHours(23, 59, 59, 999);
+    if (new Date(latestSub!.created_at) > resubmitDue) {
+      resubmitLatePenalty = 20;
+      resubmitReason = " | resubmit ช้า → -20";
+    }
+  }
+
+  const qualityReason = qualityPenalty > 0 ? " | rejection≥2 → -20" : "";
+  const total = Math.max(0, timingScore - qualityPenalty - resubmitLatePenalty);
+  const reason = `timing=${timingScore} (${timingReason})${qualityReason}${resubmitReason} → score=${total}`;
+
+  return {
+    timingScore,
+    qualityPenalty,
+    resubmitLatePenalty,
+    total,
+    reason,
+    earliestSub: earliestSub?.created_at ?? null,
+    latestSub: latestSub?.created_at ?? null,
+  };
+}
+
 export default function KpiPage() {
   const router = useRouter();
   const [taskList, setTaskList] = useState<StoredTask[]>([]);
@@ -66,7 +140,7 @@ export default function KpiPage() {
   useEffect(() => {
     supabase
       .from("tasks")
-      .select("id, title, status, assigned_to, due_date, resubmit_due_date, rejection_count, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
+      .select("id, task_code, title, status, assigned_to, due_date, resubmit_due_date, rejection_count, task_submissions(created_at), assignee:profiles!tasks_assigned_to_fkey(full_name, email)")
       .not("assigned_to", "is", null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then(({ data }) => {
@@ -74,6 +148,7 @@ export default function KpiPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setTaskList((data as any[]).map((t: any) => ({
             id: t.id,
+            task_code: t.task_code ?? undefined,
             title: t.title ?? "",
             status: t.status,
             assigned_to: t.assigned_to ?? null,
@@ -132,6 +207,20 @@ export default function KpiPage() {
         lateResubmissionTasks,
         kpiScore,
       };
+    });
+  })();
+
+  const debugGroups = (() => {
+    if (taskList.length === 0) return [];
+    const grouped: Record<string, StoredTask[]> = {};
+    for (const t of taskList) {
+      if (!t.assigned_to) continue;
+      if (!grouped[t.assigned_to]) grouped[t.assigned_to] = [];
+      grouped[t.assigned_to].push(t);
+    }
+    return Object.entries(grouped).map(([, tasks]) => {
+      const assignee = tasks[0]?.assignee;
+      return { name: assignee?.full_name || assignee?.email || "ไม่ระบุชื่อ", tasks };
     });
   })();
 
@@ -268,6 +357,86 @@ export default function KpiPage() {
             Logout
           </button>
         </div>
+
+        {process.env.NODE_ENV === "development" && (
+          <div className="rounded-2xl border-2 border-dashed border-orange-300 bg-orange-50 p-3 space-y-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-orange-600">
+              &#x1F41B; KPI Debug — dev only (ไม่แสดงใน production)
+            </p>
+
+            {debugGroups.map((group) => {
+              const countable = group.tasks.filter((t) => shouldCountInKpi(t));
+              const scores = countable.map((t) => taskScore(t));
+              const sum = scores.reduce((a, b) => a + b, 0);
+              const avg = countable.length > 0 ? sum / countable.length : 100;
+              const rounded = Math.round(avg);
+
+              return (
+                <div key={group.name} className="rounded-xl bg-white p-3 ring-1 ring-orange-200 space-y-3">
+                  <p className="text-xs font-bold text-orange-800">{group.name}</p>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-[9px] leading-4 text-zinc-700">
+                      <thead>
+                        <tr className="border-b border-zinc-200 text-zinc-500">
+                          <th className="pr-2 pb-1 text-left font-semibold">task_code</th>
+                          <th className="pr-2 pb-1 text-left font-semibold">title</th>
+                          <th className="pr-2 pb-1 text-left font-semibold">status</th>
+                          <th className="pr-2 pb-1 text-left font-semibold">due_date</th>
+                          <th className="pr-2 pb-1 text-left font-semibold">resubmit_due</th>
+                          <th className="pr-2 pb-1 text-left font-semibold">earliest_sub</th>
+                          <th className="pr-2 pb-1 text-left font-semibold">latest_sub</th>
+                          <th className="pr-2 pb-1 text-right font-semibold">rejects</th>
+                          <th className="pr-2 pb-1 text-right font-semibold">score</th>
+                          <th className="pb-1 text-left font-semibold">reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.tasks.map((t) => {
+                          const bd = taskScoreBreakdown(t);
+                          const counted = shouldCountInKpi(t);
+                          return (
+                            <tr
+                              key={t.id}
+                              className={`border-b border-zinc-100 ${!counted ? "opacity-40" : ""}`}
+                            >
+                              <td className="pr-2 py-1 font-mono whitespace-nowrap">
+                                {t.task_code ?? t.id.slice(0, 8)}
+                              </td>
+                              <td className="pr-2 py-1 max-w-[100px] truncate">{t.title}</td>
+                              <td className="pr-2 py-1 whitespace-nowrap">{t.status}</td>
+                              <td className="pr-2 py-1 font-mono whitespace-nowrap">{t.due_date ?? "—"}</td>
+                              <td className="pr-2 py-1 font-mono whitespace-nowrap">{t.resubmit_due_date ?? "—"}</td>
+                              <td className="pr-2 py-1 font-mono whitespace-nowrap">
+                                {bd.earliestSub ? bd.earliestSub.slice(0, 16).replace("T", " ") : "—"}
+                              </td>
+                              <td className="pr-2 py-1 font-mono whitespace-nowrap">
+                                {bd.latestSub ? bd.latestSub.slice(0, 16).replace("T", " ") : "—"}
+                              </td>
+                              <td className="pr-2 py-1 text-right">{t.rejection_count}</td>
+                              <td className={`pr-2 py-1 text-right font-bold ${!counted ? "text-zinc-400" : bd.total < 100 ? "text-rose-600" : "text-emerald-600"}`}>
+                                {counted ? bd.total : "—"}
+                              </td>
+                              <td className="py-1 text-zinc-500 whitespace-nowrap">{bd.reason}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="rounded-lg bg-zinc-50 p-2 ring-1 ring-zinc-200 font-mono text-[9px] text-zinc-700 space-y-0.5">
+                    <p><span className="font-semibold text-zinc-500">Scores (countable):</span> [{scores.join(", ")}]</p>
+                    <p><span className="font-semibold text-zinc-500">Sum:</span> {sum}</p>
+                    <p><span className="font-semibold text-zinc-500">Count:</span> {countable.length}</p>
+                    <p><span className="font-semibold text-zinc-500">Average:</span> {sum} / {countable.length} = {avg.toFixed(6)}</p>
+                    <p><span className="font-semibold text-zinc-500">Rounded KPI:</span> <span className="font-bold text-zinc-900 text-[11px]">{rounded}</span></p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </main>
   );
