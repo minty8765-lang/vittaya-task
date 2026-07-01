@@ -907,10 +907,12 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {t.submissionNote && (
+                {t.submittedAt && (
                   <div className="rounded-xl bg-amber-50 px-3 py-2.5 ring-1 ring-amber-100">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-amber-600">ข้อความพนักงาน</p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-800 whitespace-pre-wrap">{t.submissionNote}</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-800 whitespace-pre-wrap">
+                      {t.submissionNote || "พนักงานไม่ได้ระบุข้อความเพิ่มเติม"}
+                    </p>
                   </div>
                 )}
 
